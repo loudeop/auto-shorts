@@ -23,8 +23,8 @@ def _gemini(prompt):
                 parts = r.json()["candidates"][0]["content"]["parts"]
                 return "".join(p.get("text", "") for p in parts)
             last = r
-            print(f"[llm] {model}: HTTP {r.status_code} {r.text[:150]}")
-            if r.status_code in (404, 429):  # unknown model or out of quota -> next model
+            print(f"[llm] {model}: HTTP {r.status_code} {r.text[:500]}")
+            if r.status_code == 404:  # unknown model -> next model (a 429 retries without grounding first)
                 break
     last.raise_for_status()
 
