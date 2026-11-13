@@ -105,9 +105,12 @@ def main():
             else: attempt(f"facebook:{tag}", lambda: fb_long_scheduled(path, meta, when))
         if enabled("TG_BOT_TOKEN", "TG_CHAT_ID"): later.append((f"telegram:{tag}", lambda path=path, meta=meta: telegram(path, meta)))
     if a.dry: return
-    print(f"[publish] waiting until {when.isoformat()}")
-    wait_until(when)
-    for name, fn in later: attempt(name, fn)
+    if later:
+        print(f"[publish] waiting until {when.isoformat()}")
+        wait_until(when)
+        for name, fn in later: attempt(name, fn)
+    else:
+        print("[publish] nothing to send at the publish time")
     print(json.dumps(results, indent=1))
     if results and all(str(v).startswith("FAILED") for v in results.values()): sys.exit(1)
 
