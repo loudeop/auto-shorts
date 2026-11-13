@@ -4,19 +4,29 @@ import json, os, re, requests
 
 T = 180
 
+# tried in order until one works; set GEMINI_MODEL to force a single model
+GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
+
 
 def _gemini(prompt):
     key = os.environ["GEMINI_API_KEY"]
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    models = [os.environ["GEMINI_MODEL"]] if os.environ.get("GEMINI_MODEL") else GEMINI_MODELS
     base = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8}}
-    # grounding with Google Search gives it real sources; fall back to no tools if refused
-    for body in ({**base, "tools": [{"google_search": {}}]}, base):
-        r = requests.post(url, params={"key": key}, json=body, timeout=T)
-        if r.ok:
-            parts = r.json()["candidates"][0]["content"]["parts"]
-            return "".join(p.get("text", "") for p in parts)
-    r.raise_for_status()
+    last = None
+    for model in models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        # grounding with Google Search gives it real sources; fall back to no tools if refused
+        for body in ({**base, "tools": [{"google_search": {}}]}, base):
+            r = requests.post(url, params={"key": key}, json=body, timeout=T)
+            if r.ok:
+                print(f"[llm] gemini model {model}")
+                parts = r.json()["candidates"][0]["content"]["parts"]
+                return "".join(p.get("text", "") for p in parts)
+            last = r
+            print(f"[llm] {model}: HTTP {r.status_code} {r.text[:150]}")
+            if r.status_code in (404, 429):  # unknown model or out of quota -> next model
+                break
+    last.raise_for_status()
 
 
 def _openai_style(url, key, model, prompt, extra_headers=None):
