@@ -35,3 +35,7 @@ Change this in `config/schedule.json`.
 - **Voice:** Gemini 3.8 TTS, a narrator plus a different voice per character, emotion styles and laughs/sighs. Falls back to espeak if the call fails.
 - **Sound:** Lyria 3.5 score (ducked under speech), synthesized whooshes, pops and impacts. Needs `GEMINI_API_KEY`; set secret/env `MUSIC=0` to turn music off, `TTS=espeak` to force the system voice.
 - **preview-stills** workflow: about 10 minutes, one still per shot plus a contact sheet (tick *clip* to also check lip-sync). Run it before a full render.
+
+## v2.1: body language and set dressing
+- 13 emotions now change the whole body, not just the face: happy = fast, open arms, upright; scared = backs away, trembles, hands to face; sad = slow, slumped, head bowed; interested = slow step toward the camera; disgusted = trunk sways side to side, hands held in; bored = bowed, slow head turns; angry = leans in, stomps; smug = relaxed, slow head turns; thinking = hand to face. Every emotion eases in over 0.35 s after a cut.
+- Each world is dressed with 6-8 large props (story-specific ones from the script plus defaults for the place) that bob slightly, and drifting particles: dust, fireflies, blowing sand or embers.

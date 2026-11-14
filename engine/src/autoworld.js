@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {box, cyl, sign, ground, cloud, facade, crate} from './kit.js';
+import {box, cyl, sign, ground, cloud, facade, crate, rng} from './kit.js';
 import {character, PALETTES} from './char.js';
 import {LOC, street, room, ease} from './sets.js';
 import {wordT, KIND, SHOTS} from './camera.js';
@@ -13,6 +13,51 @@ import timing from './timing.json';
 
 const ENV = timing.env || [];
 const NEW_SETS = {cave, desert, forest, harbor, castle};
+const OBJECTS_OK = (n) => typeof n === 'string' && n.length > 0;
+const START = Object.fromEntries(timing.shots.map((x) => [x.key, x.start]));
+
+// props that suit each place, mixed with the ones the story asks for ("props" in story.json)
+const DEFAULT_PROPS = {
+  cave: ['lantern', 'pickaxe', 'crate', 'gold'], desert: ['crate', 'bottle', 'chest', 'lantern'], forest: ['lantern', 'chest', 'book', 'bottle'],
+  harbor: ['crate', 'bottle', 'chest', 'clock'], castle: ['chest', 'scroll', 'trophy', 'key', 'lantern'], office: ['book', 'clock', 'bulb', 'flask', 'battery'],
+  lab: ['flask', 'bulb', 'battery', 'magnet', 'gear'], workshop: ['gear', 'hammer', 'battery', 'crate'], yard: ['crate', 'hammer', 'gear', 'bottle'],
+  street_day: ['crate', 'coin', 'bottle'], street_night: ['crate', 'lantern', 'coin'],
+};
+// slots around the action: [dx, dz (relative to the hero row), scale]. Big enough to read on a phone screen.
+const SLOTS = [[-2.7, -0.6, 1.4], [2.9, -0.4, 1.3], [-4.2, -2.2, 1.9], [4.4, -2.6, 1.7], [-2.2, 1.7, 1.0], [0.3, -3.4, 1.7], [3.6, 1.9, 0.9], [-3.4, 0.9, 1.2]];
+
+const dotTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c); return t;
+})();
+
+// drifting particles that suit the place: dust, fireflies, blowing sand or rising embers
+function particles(loc) {
+  const K = KIND[loc], ox = LOC[loc]; const r = rng(loc.length * 13 + 5);
+  const kind = (loc === 'forest' || loc === 'street_night') ? 'fly' : loc === 'desert' ? 'sand' : (loc === 'workshop' || loc === 'cave') ? 'ember' : 'dust';
+  const N = kind === 'sand' ? 150 : 100;
+  const base = new Float32Array(N * 3), pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) { base[i * 3] = ox + (r() - 0.5) * 12; base[i * 3 + 1] = 0.3 + r() * 4.2; base[i * 3 + 2] = K.hz - 4 + r() * 8; }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const color = {dust: '#fff3d0', fly: '#e8ff7a', sand: '#e8c890', ember: '#ff9a3c'}[kind];
+  const mat = new THREE.PointsMaterial({color, size: kind === 'fly' ? 0.16 : 0.09, map: dotTex, transparent: true, opacity: kind === 'dust' ? 0.6 : 0.9, depthWrite: false});
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false;
+  const update = (t) => {
+    for (let i = 0; i < N; i++) {
+      const ph = i * 1.7; let x = base[i * 3], y = base[i * 3 + 1], z = base[i * 3 + 2];
+      if (kind === 'dust') { x += Math.sin(t * 0.3 + ph) * 0.5; y += Math.sin(t * 0.4 + ph * 1.3) * 0.3; z += Math.cos(t * 0.25 + ph) * 0.4; }
+      else if (kind === 'fly') { x += Math.sin(t * 0.6 + ph) * 1.2; y = 0.6 + (y % 2.2) + Math.sin(t * 0.8 + ph) * 0.4; z += Math.cos(t * 0.5 + ph) * 1.0; }
+      else if (kind === 'sand') { x = ox - 8 + ((x - ox + 8 + t * 3.5 + ph) % 16); y = 0.2 + (y % 1.8) + Math.sin(t * 2 + ph) * 0.15; }
+      else { y = 0.3 + ((y + t * 0.5 + ph) % 5); x += Math.sin(t * 1.2 + ph) * 0.3; }
+      pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
+    }
+    geo.attributes.position.needsUpdate = true;
+    if (kind === 'fly') mat.opacity = 0.65 + 0.3 * Math.sin(t * 3);
+  };
+  return {pts, update};
+}
 
 const HATS = ['none', 'bowler', 'cap', 'top'];
 
@@ -65,6 +110,22 @@ export function buildWorld() {
     }
   }
 
+  // set dressing: big story props around the action, gently bobbing, and ambient particles
+  const bobbers = [];
+  for (const loc of used) {
+    const K = KIND[loc], ox = LOC[loc], r = rng(loc.length * 7 + 3);
+    const names = [...(story.props || []).filter((n) => OBJECTS_OK(n)), ...(DEFAULT_PROPS[loc] || ['crate'])];
+    SLOTS.forEach(([dx, dz0, sc], i) => {
+      let dz = dz0;
+      if (loc.startsWith('street') && dz > 0.9) dz = 0.9;                // stay on the pavement
+      if (loc === 'office' && dx < -0.5 && dz > -0.5) return;            // that is where the desk is
+      const o = makeObject(names[(i + loc.length) % names.length]);
+      o.position.set(ox + dx, K.hy, K.hz + dz); o.scale.setScalar(sc * (0.9 + r() * 0.3));
+      const ry = (r() - 0.5) * 1.4; o.rotation.y = ry; W.add(o); bobbers.push({o, y: K.hy, ry, ph: r() * 6});
+    });
+    const p = particles(loc); W.add(p.pts); updaters.push(p.update);
+  }
+
   // the story's cast, one copy per location (only the ones named in the current shot are visible)
   const heroes = {};
   for (const loc of used) {
@@ -112,9 +173,11 @@ export function buildWorld() {
           const emo = Array.isArray(cur.emotion) ? (cur.emotion[idx] || cur.emotion[0]) : cur.emotion;
           h.userData.pose.emo = emo || 'neutral';
           h.userData.pose.talk = cur.speaker === ci ? (ENV[Math.floor(t * 30)] || 0) : 0;
+          h.userData.pose.age = Math.max(0, t - (START[shotKey] || 0));
         }
       });
     }
+    for (const b of bobbers) { b.o.position.y = b.y + Math.abs(Math.sin(t * 1.4 + b.ph)) * 0.03; b.o.rotation.y = b.ry + Math.sin(t * 0.5 + b.ph) * 0.15; }
     for (const [key, o] of Object.entries(objs)) {
       o.visible = key === shotKey;
       if (o.visible) { const sh = SHOTS[key]; o.scale.setScalar(1.5 * Math.max(0.001, ease(t, timing.shots.find((x) => x.key === key).start, timing.shots.find((x) => x.key === key).start + 0.3))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12; }

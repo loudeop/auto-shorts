@@ -7,7 +7,7 @@ LOCS = {"street_day": "city street in daylight", "street_night": "city street at
         "yard": "back yard / construction yard", "workshop": "factory / workshop", "lab": "laboratory / weather room",
         "cave": "mine, tunnel, cellar or cave", "desert": "desert / old west / wasteland", "forest": "forest / countryside / camp",
         "harbor": "harbor, docks, ship or sea story", "castle": "castle, palace, court or great hall"}
-EMOTIONS = ["neutral", "happy", "excited", "shocked", "scared", "angry", "sad", "worried", "smug", "thinking"]
+EMOTIONS = ["neutral", "happy", "excited", "shocked", "scared", "angry", "sad", "worried", "smug", "thinking", "interested", "disgusted", "bored"]
 PALETTES = ["engineer", "student", "welder", "clerk", "official", "red", "teal", "mustard", "pink", "navy"]
 sys.path.insert(0, os.path.join(ROOT, "pipeline"))
 OBJECTS = ["gold", "dynamite", "bottle", "key", "coin", "bulb", "rocket", "book", "map", "flask", "gear", "bomb", "trophy", "egg", "clock",
@@ -25,13 +25,14 @@ Rules: every fact needs 2 independent sources (full URLs). Leave out anything si
 WORLD: choose the ONE location that fits the story best and stay there for most shots (at most 3 locations in total, switch only when the story really moves). Locations: {locs}.
 CAST: 2-4 invented characters (palette from {pal}; hat none|bowler|cap|top; glasses true/false).
 DIALOGUE: about 40 percent of shots are a character speaking ("speaker" = cast index, who must be in "who"; short, punchy, in character, max 14 words). The other shots are narration ("speaker": "narrator").
-EMOTION: every shot has an emotion per character in "who" (list, same order) from: {emo}. Vary them; use neutral rarely. Match the beat (shock at twists, worry at doubt, smug at schemes).
+EMOTION: every shot has an emotion per character in "who" (list, same order) from: {emo}. Vary them; use neutral rarely. Match the beat (shock at twists, worry at doubt, smug at schemes, interested when someone leans in to look, disgusted at something foul or fake, bored for the one who does not care). The animation turns each emotion into body language (fear = backing away and trembling, sadness = slumped and slow, joy = open arms and bounce).
+PROPS: "props" = 4-6 object names from the list below that belong in this story world; they are scattered visibly around the characters.
 OBJECT: about every third shot shows one big hero prop close-up that the sentence is about, from: {objs} (or "" for none).
 SIGN: "label" = 1-3 word UPPERCASE sign shown in the set (or ""), "label_word" = index of the spoken word where it pops in.
 TAGS: you may use <laugh>, <sigh>, <breath> or <short pause> inside text, at most 3 in the whole script, only inside dialogue.
 MUSIC: "music" = one sentence brief for the score: genre, mood, instruments, tempo (e.g. "dusty western, tense plucked guitar and low strings, 90 bpm").
 Return ONLY JSON, no markdown:
-{{"title": "<=70 chars, no clickbait lies", "description": "2-3 sentences", "tags": ["..."], "music": "...",
+{{"title": "<=70 chars, no clickbait lies", "description": "2-3 sentences", "tags": ["..."], "music": "...", "props": ["lantern", "crate"],
  "cast": [{{"palette":"red","hat":"cap","glasses":false}}],
  "facts": [{{"claim":"...","sources":["https://...","https://..."]}}],
  "shots": [{{"location":"cave","who":[0,1],"speaker":"narrator","emotion":["shocked","worried"],"object":"gold","label":"FAKE GOLD","label_word":2,"text":"exact words spoken in this shot"}}]}}"""
@@ -53,6 +54,7 @@ def validate(d, fmt):
 
 
 def tidy(d):
+    d["props"] = [p for p in d.get("props", []) if p in OBJECTS][:6]
     for c in d["cast"]:
         if c.get("palette") not in PALETTES: c["palette"] = "engineer"
     n = len(d["cast"])
@@ -96,7 +98,7 @@ def build(fmt, out, sample=False):
                for p, s in zip(placed, d["shots"])]
     timing = dict(fps=30, duration=duration, format=fmt, width=W, height=H, shots=shots_t, env=env)
     json.dump(timing, open(os.path.join(out, "timing.json"), "w"))
-    story = dict(title=d["title"], format=fmt, cast=d["cast"],
+    story = dict(title=d["title"], format=fmt, cast=d["cast"], props=d["props"],
                  shots=[{k: s[k] for k in ("key", "location", "who", "speaker", "emotion", "object", "label", "label_word", "mood", "cam") if k in s} for s in d["shots"]])
     json.dump(story, open(os.path.join(out, "story.json"), "w"), indent=1)
     json.dump(dict(title=d["title"][:95], description=d["description"], tags=d.get("tags", [])[:15], facts=d["facts"], format=fmt),

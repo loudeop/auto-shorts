@@ -59,20 +59,27 @@ export const PALETTES = {
   navy: {jacket: '#2e3f6b', jacket2: '#26355a', tie: '#e0533d', hair: '#1f1a18'},
 };
 
-// emotion presets: brow tilt (+ = inner end down/angry), brow lift, lid openness, eye scale, mouth curve (+ smile / - frown),
-// mouth open, mouth width, head tilt, bounce speed, arm raise
+// Emotion presets. Face: brow tilt (+ = inner end down), brow lift, lid openness, eye scale, mouth curve (+ smile / - frown), mouth open/width.
+// Body (from research on emotional body movement): spd = tempo, arms = raise/open, lean = trunk lean (+ forward), droop = head bowed,
+// sway = side-to-side trunk, shake = trembling, step = walks toward (+) or away from (-) the camera, coverR/coverL = hand to face,
+// close = hands held close to the body, turn = slow head turns.
 export const EMO = {
-  neutral:  {brow: 0.0,  browY: 0.0,  lid: 0.55, eyeS: 1.0,  curve: 0.35, open: 0.0, ow: 1.0, tilt: 0.0,   bounce: 1.0, arms: 0.0},
-  happy:    {brow: -0.1, browY: 0.02, lid: 0.7,  eyeS: 1.0,  curve: 1.0,  open: 0.3, ow: 1.2, tilt: 0.06,  bounce: 1.8, arms: 0.25},
-  excited:  {brow: -0.15, browY: 0.05, lid: 0.95, eyeS: 1.15, curve: 1.0,  open: 0.65, ow: 1.3, tilt: 0.1,  bounce: 3.0, arms: 0.8},
-  shocked:  {brow: -0.2, browY: 0.09, lid: 1.0,  eyeS: 1.3,  curve: 0.0,  open: 0.9, ow: 0.8, tilt: 0.0,   bounce: 0.5, arms: 0.5},
-  scared:   {brow: -0.35, browY: 0.07, lid: 1.0,  eyeS: 1.2,  curve: -0.5, open: 0.5, ow: 1.0, tilt: 0.05,  bounce: 2.6, arms: 0.6},
-  angry:    {brow: 0.5,  browY: -0.02, lid: 0.45, eyeS: 0.9,  curve: -0.8, open: 0.35, ow: 1.3, tilt: -0.05, bounce: 1.5, arms: 0.7},
-  sad:      {brow: -0.4, browY: 0.0,  lid: 0.4,  eyeS: 0.95, curve: -1.0, open: 0.0, ow: 1.0, tilt: 0.12,  bounce: 0.3, arms: -0.1},
-  worried:  {brow: -0.3, browY: 0.03, lid: 0.8,  eyeS: 1.05, curve: -0.4, open: 0.1, ow: 0.9, tilt: 0.1,   bounce: 1.0, arms: 0.2},
-  smug:     {brow: 0.15, browY: 0.0,  lid: 0.4,  eyeS: 1.0,  curve: 0.8,  open: 0.0, ow: 1.0, tilt: -0.1,  bounce: 0.8, arms: 0.0},
-  thinking: {brow: -0.1, browY: 0.04, lid: 0.7,  eyeS: 1.0,  curve: 0.0,  open: 0.0, ow: 1.0, tilt: 0.15,  bounce: 0.5, arms: 0.0},
+  neutral: {brow: 0, browY: 0, lid: 0.55, eyeS: 1, curve: 0.35, open: 0, ow: 1, tilt: 0, bounce: 1, arms: 0, spd: 1, lean: 0, droop: 0, sway: 0.012, shake: 0, step: 0, coverR: 0, coverL: 0, close: 0, turn: 0.05},
+  happy: {brow: -0.1, browY: 0.02, lid: 0.7, eyeS: 1, curve: 1, open: 0.3, ow: 1.2, tilt: 0.06, bounce: 2.0, arms: 0.45, spd: 1.6, lean: -0.05, droop: -0.06, sway: 0.05, shake: 0, step: 0.1, coverR: 0, coverL: 0, close: 0, turn: 0.1},
+  excited: {brow: -0.15, browY: 0.05, lid: 0.95, eyeS: 1.15, curve: 1, open: 0.65, ow: 1.3, tilt: 0.1, bounce: 3.2, arms: 0.85, spd: 2.3, lean: -0.04, droop: -0.05, sway: 0.06, shake: 0.05, step: 0.15, coverR: 0, coverL: 0, close: 0, turn: 0.12},
+  shocked: {brow: -0.2, browY: 0.09, lid: 1, eyeS: 1.3, curve: 0, open: 0.9, ow: 0.8, tilt: 0, bounce: 0.5, arms: 0.55, spd: 1, lean: -0.14, droop: -0.04, sway: 0, shake: 0.35, step: -0.3, coverR: 0, coverL: 0, close: 0, turn: 0},
+  scared: {brow: -0.35, browY: 0.07, lid: 1, eyeS: 1.2, curve: -0.5, open: 0.5, ow: 1, tilt: 0.05, bounce: 2.6, arms: 0.2, spd: 1.5, lean: -0.1, droop: 0.08, sway: 0.03, shake: 1, step: -0.5, coverR: 1, coverL: 0.55, close: 0, turn: 0.08},
+  angry: {brow: 0.5, browY: -0.02, lid: 0.45, eyeS: 0.9, curve: -0.8, open: 0.35, ow: 1.3, tilt: -0.05, bounce: 1.5, arms: 0.75, spd: 1.6, lean: 0.1, droop: 0.03, sway: 0.025, shake: 0.3, step: 0.35, coverR: 0, coverL: 0, close: 0, turn: 0},
+  sad: {brow: -0.4, browY: 0, lid: 0.4, eyeS: 0.95, curve: -1, open: 0, ow: 1, tilt: 0.12, bounce: 0.3, arms: -0.1, spd: 0.45, lean: 0.13, droop: 0.38, sway: 0.015, shake: 0, step: 0, coverR: 0, coverL: 0, close: 0.15, turn: 0.04},
+  worried: {brow: -0.3, browY: 0.03, lid: 0.8, eyeS: 1.05, curve: -0.4, open: 0.1, ow: 0.9, tilt: 0.1, bounce: 1, arms: 0.05, spd: 1.3, lean: 0.05, droop: 0.1, sway: 0.035, shake: 0.12, step: -0.05, coverR: 0, coverL: 0, close: 0.75, turn: 0.1},
+  smug: {brow: 0.15, browY: 0, lid: 0.4, eyeS: 1, curve: 0.8, open: 0, ow: 1, tilt: -0.1, bounce: 0.8, arms: 0, spd: 0.7, lean: -0.07, droop: -0.09, sway: 0.025, shake: 0, step: 0.05, coverR: 0, coverL: 0, close: 0, turn: 0.14},
+  thinking: {brow: -0.1, browY: 0.04, lid: 0.7, eyeS: 1, curve: 0, open: 0, ow: 1, tilt: 0.15, bounce: 0.5, arms: 0, spd: 0.6, lean: 0.03, droop: 0.06, sway: 0.02, shake: 0, step: 0, coverR: 0.95, coverL: 0, close: 0.2, turn: 0.12},
+  interested: {brow: -0.12, browY: 0.06, lid: 0.9, eyeS: 1.12, curve: 0.3, open: 0, ow: 1, tilt: 0.08, bounce: 0.6, arms: 0, spd: 0.7, lean: 0.09, droop: 0, sway: 0.01, shake: 0, step: 0.5, coverR: 0, coverL: 0, close: 0, turn: 0.02},
+  disgusted: {brow: 0.4, browY: -0.02, lid: 0.4, eyeS: 0.9, curve: -0.9, open: 0.15, ow: 0.9, tilt: -0.08, bounce: 0.6, arms: 0, spd: 1.1, lean: -0.08, droop: -0.02, sway: 0.11, shake: 0, step: -0.18, coverR: 0.15, coverL: 0, close: 1, turn: 0.2},
+  bored: {brow: 0.05, browY: -0.03, lid: 0.28, eyeS: 0.95, curve: -0.1, open: 0, ow: 1, tilt: 0.1, bounce: 0.3, arms: -0.05, spd: 0.35, lean: 0.1, droop: 0.26, sway: 0.02, shake: 0, step: 0, coverR: 0, coverL: 0, close: 0, turn: 0.38},
 };
+const ss = (x) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
+const mixEmo = (A, B, k) => { const o = {}; for (const key in A) o[key] = A[key] + ((B[key] === undefined ? A[key] : B[key]) - A[key]) * k; return o; };
 
 export function character({palette = 'engineer', hat = 'none', glasses = false, seed = 1, scale = 1} = {}) {
   const P = PALETTES[palette];
@@ -150,12 +157,16 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
   root.scale.setScalar(scale);
   const phase = rng(seed)() * 6;
   // pose is set from outside each frame: {emo, talk 0..1}. Everything is a pure function of time (no state).
-  root.userData.pose = {emo: 'neutral', talk: 0};
+  root.userData.pose = {emo: 'neutral', talk: 0, age: 99};
   root.userData.update = (t, camPos, baseYaw = 0) => {
-    const {emo, talk} = root.userData.pose;
-    const E = EMO[emo] || EMO.neutral;
+    const {emo, talk, age} = root.userData.pose;
+    const T = EMO[emo] || EMO.neutral;
+    const k = ss(age / 0.35);                       // the emotion eases in over 0.35 s after each cut
+    const E = mixEmo(EMO.neutral, T, k);
+    const a = age * E.spd + phase;                  // body tempo, local to this shot
+    // face
     const bt = ((t * 0.33 + phase * 0.37) % 1);
-    const blink = bt < 0.045 ? Math.sin(bt / 0.045 * Math.PI) : 0;           // quick blink about every 3 s
+    const blink = bt < 0.045 ? Math.sin(bt / 0.045 * Math.PI) : 0;
     const lidOpen = Math.max(0, E.lid * (1 - blink));
     for (const e of eyes) {
       e.lid.position.y = -0.025 + lidOpen * 0.14;
@@ -172,14 +183,25 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
     curve.scale.y = openM.visible && open > 0.35 ? 0.0001 : E.curve;
     curve.scale.x = 1 + 0.25 * Math.max(0, E.curve);
     mouth.position.y = -0.12 - 0.02 * open;
-    // body language: bounce, head tilt/nod, arm raises, small gestures while talking
-    body.position.y = Math.abs(Math.sin(t * 2.2 * E.bounce + phase)) * 0.015 * E.bounce;
-    head.rotation.z = Math.sin(t * 1.3 + phase) * 0.05 + E.tilt;
-    head.rotation.x = talk > 0 ? Math.sin(t * 9 + phase) * 0.045 * talk : 0;
-    head.position.y = 1.56 + Math.sin(t * 1.9 + phase) * 0.008 + (E.eyeS > 1.2 ? 0.012 : 0);
-    const raise = E.arms * 2.0 * (0.75 + 0.25 * Math.sin(t * 3.2 + phase)) + (talk > 0 ? talk * 0.5 * Math.max(0.3, E.arms + 0.2) * Math.sin(t * 7 + phase) : 0);
-    armL.rotation.z = Math.sin(t * 1.6 + phase) * 0.08 - raise;
-    armR.rotation.z = -Math.sin(t * 1.4 + phase + 1) * 0.08 + raise * (E.arms > 0.4 ? 1 : 0.35);
+    // trunk and head: lean, slouch, sway, retreat / approach, trembling, slow head turns
+    const tremble = E.shake > 0.001;
+    body.position.y = Math.abs(Math.sin(a * 2.2)) * 0.015 * E.bounce;
+    body.position.x = tremble ? Math.sin(t * 53 + phase) * 0.012 * E.shake : 0;
+    body.position.z = T.step * ss(age / 1.2);
+    body.rotation.x = E.lean;
+    body.rotation.z = Math.sin(a * 1.6) * E.sway;
+    head.rotation.z = Math.sin(a * 1.3) * 0.05 + E.tilt;
+    head.rotation.x = E.droop + (talk > 0 ? Math.sin(t * 9 + phase) * 0.045 * talk : 0) + (tremble ? Math.sin(t * 61 + phase) * 0.03 * E.shake : 0);
+    head.rotation.y = Math.sin(a * 0.9) * E.turn;
+    head.position.y = 1.56 + Math.sin(a * 1.9) * 0.008 + (E.eyeS > 1.2 ? 0.012 : 0) - E.droop * 0.05;
+    // arms: open / raised, held close, trembling, or hands in front of the face
+    const raise = E.arms * 2.0 * (0.75 + 0.25 * Math.sin(a * 3.2)) + (talk > 0 ? talk * 0.5 * Math.max(0.3, E.arms + 0.2) * Math.sin(t * 7 + phase) : 0);
+    const jit = tremble ? Math.sin(t * 47 + phase) * 0.12 * E.shake : 0;
+    const wring = E.close * (0.9 + Math.sin(t * 5 + phase) * 0.12);
+    const cL = E.coverL, cR = E.coverR;
+    armL.rotation.z = (Math.sin(a * 1.6) * 0.08 - raise + wring + jit) * (1 - cL) - 3.3 * cL;
+    armR.rotation.z = (-Math.sin(a * 1.4 + 1) * 0.08 + raise * (E.arms > 0.4 ? 1 : 0.35) - wring + jit) * (1 - cR) + 3.3 * cR;
+    armL.position.z = 0.012 + cL * 0.14; armR.position.z = 0.012 + cR * 0.14;
     // turn toward camera, clamped yaw
     const wp = new THREE.Vector3(); root.getWorldPosition(wp);
     let yaw = Math.atan2(camPos.x - wp.x, camPos.z - wp.z) - baseYaw;

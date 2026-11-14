@@ -11,7 +11,8 @@ CAST_VOICES = os.environ.get("CAST_VOICES", "Puck,Kore,Fenrir,Aoede,Zephyr,Orus"
 NARRATOR_STYLE = "a gripping documentary storyteller: warm, conversational, natural pauses, rising tension, never robotic"
 STYLE = {"neutral": "natural and conversational", "happy": "warm and cheerful", "excited": "excited, fast and breathless",
          "shocked": "stunned, breathless, in disbelief", "scared": "trembling and urgent", "angry": "furious, sharp and loud",
-         "sad": "sorrowful and quiet", "worried": "anxious and hesitant", "smug": "smug and playful", "thinking": "thoughtful and slow"}
+         "sad": "sorrowful and quiet", "worried": "anxious and hesitant", "smug": "smug and playful", "thinking": "thoughtful and slow",
+         "interested": "curious and leaning in", "disgusted": "disgusted and repulsed", "bored": "bored, flat and drawling"}
 ESPEAK_VARIANTS = ["m3", "f2", "m5", "f3", "m7", "m1"]
 
 
@@ -93,7 +94,7 @@ def build_voice_track(shots, out_dir, fps=30):
         sp = s["speaker"]
         voice = NARRATOR_VOICE if sp == "narrator" else CAST_VOICES[int(sp) % len(CAST_VOICES)]
         style = NARRATOR_STYLE if sp == "narrator" else "in character, " + STYLE.get(s["emotion"], STYLE["neutral"])
-        if sp == "narrator" and s["emotion"] in ("shocked", "scared", "angry", "sad", "excited"):
+        if sp == "narrator" and s["emotion"] in ("shocked", "scared", "angry", "sad", "excited", "disgusted", "bored"):
             style += ", with " + STYLE[s["emotion"]] + " emphasis"
         ok = tts_gemini(vtext, voice, style, raw)
         used_gemini += ok
