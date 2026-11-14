@@ -5,7 +5,14 @@ import {LOC, street, room, ease} from './sets.js';
 import {wordT, KIND, SHOTS} from './camera.js';
 import {dressStreet, dressPlaza, dressOffice, dressYard, dressJoint, dressWeather} from './dress.js';
 import * as P from './props.js';
+import {cave, desert, forest, harbor, castle} from './sets2.js';
+import {makeObject} from './objects.js';
+import {objPos} from './camera.js';
 import story from './story.json';
+import timing from './timing.json';
+
+const ENV = timing.env || [];
+const NEW_SETS = {cave, desert, forest, harbor, castle};
 
 const HATS = ['none', 'bowler', 'cap', 'top'];
 
@@ -20,7 +27,9 @@ export function buildWorld() {
 
   for (const loc of used) {
     const ox = LOC[loc];
-    if (loc === 'street_night') {
+    if (NEW_SETS[loc]) {
+      W.add(NEW_SETS[loc](ox));
+    } else if (loc === 'street_night') {
       W.add(street(ox, {lit: true, seed: 11}));
       const moon = new THREE.Mesh(new THREE.CircleGeometry(6, 32), new THREE.MeshBasicMaterial({color: '#f6ecc8', fog: false}));
       moon.position.set(ox - 60, 120, -150); W.add(moon);
@@ -79,6 +88,15 @@ export function buildWorld() {
     signs[sh.key] = {g: s, word: Math.max(0, sh.label_word | 0)};
   }
 
+  // one hero prop per shot that asks for it (close-up reveal), popped in at the start of the shot
+  const objs = {};
+  for (const sh of shots) {
+    if (!sh.object) continue;
+    const o = makeObject(sh.object); const p = objPos(sh.location);
+    o.position.set(p[0], p[1], p[2]); o.scale.setScalar(1.5); o.rotation.y = -0.35;
+    o.visible = false; W.add(o); objs[sh.key] = o;
+  }
+
   const update = (t, cam, shotKey) => {
     for (const c of chars) c.userData.update(t, cam.position);
     for (const u of updaters) u(t, cam);
@@ -89,8 +107,17 @@ export function buildWorld() {
       heroes[loc].forEach((h, ci) => {
         const idx = who.indexOf(ci);
         h.visible = idx >= 0;
-        if (idx >= 0) h.position.set(LOC[loc] + (who.length === 1 ? 0 : (idx === 0 ? -0.9 : 0.9)), K.hy, K.hz);
+        if (idx >= 0) {
+          h.position.set(LOC[loc] + (who.length === 1 ? 0 : (idx === 0 ? -0.9 : 0.9)), K.hy, K.hz);
+          const emo = Array.isArray(cur.emotion) ? (cur.emotion[idx] || cur.emotion[0]) : cur.emotion;
+          h.userData.pose.emo = emo || 'neutral';
+          h.userData.pose.talk = cur.speaker === ci ? (ENV[Math.floor(t * 30)] || 0) : 0;
+        }
       });
+    }
+    for (const [key, o] of Object.entries(objs)) {
+      o.visible = key === shotKey;
+      if (o.visible) { const sh = SHOTS[key]; o.scale.setScalar(1.5 * Math.max(0.001, ease(t, timing.shots.find((x) => x.key === key).start, timing.shots.find((x) => x.key === key).start + 0.3))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12; }
     }
     for (const [key, o] of Object.entries(signs)) {
       const on = key === shotKey;

@@ -59,6 +59,21 @@ export const PALETTES = {
   navy: {jacket: '#2e3f6b', jacket2: '#26355a', tie: '#e0533d', hair: '#1f1a18'},
 };
 
+// emotion presets: brow tilt (+ = inner end down/angry), brow lift, lid openness, eye scale, mouth curve (+ smile / - frown),
+// mouth open, mouth width, head tilt, bounce speed, arm raise
+export const EMO = {
+  neutral:  {brow: 0.0,  browY: 0.0,  lid: 0.55, eyeS: 1.0,  curve: 0.35, open: 0.0, ow: 1.0, tilt: 0.0,   bounce: 1.0, arms: 0.0},
+  happy:    {brow: -0.1, browY: 0.02, lid: 0.7,  eyeS: 1.0,  curve: 1.0,  open: 0.3, ow: 1.2, tilt: 0.06,  bounce: 1.8, arms: 0.25},
+  excited:  {brow: -0.15, browY: 0.05, lid: 0.95, eyeS: 1.15, curve: 1.0,  open: 0.65, ow: 1.3, tilt: 0.1,  bounce: 3.0, arms: 0.8},
+  shocked:  {brow: -0.2, browY: 0.09, lid: 1.0,  eyeS: 1.3,  curve: 0.0,  open: 0.9, ow: 0.8, tilt: 0.0,   bounce: 0.5, arms: 0.5},
+  scared:   {brow: -0.35, browY: 0.07, lid: 1.0,  eyeS: 1.2,  curve: -0.5, open: 0.5, ow: 1.0, tilt: 0.05,  bounce: 2.6, arms: 0.6},
+  angry:    {brow: 0.5,  browY: -0.02, lid: 0.45, eyeS: 0.9,  curve: -0.8, open: 0.35, ow: 1.3, tilt: -0.05, bounce: 1.5, arms: 0.7},
+  sad:      {brow: -0.4, browY: 0.0,  lid: 0.4,  eyeS: 0.95, curve: -1.0, open: 0.0, ow: 1.0, tilt: 0.12,  bounce: 0.3, arms: -0.1},
+  worried:  {brow: -0.3, browY: 0.03, lid: 0.8,  eyeS: 1.05, curve: -0.4, open: 0.1, ow: 0.9, tilt: 0.1,   bounce: 1.0, arms: 0.2},
+  smug:     {brow: 0.15, browY: 0.0,  lid: 0.4,  eyeS: 1.0,  curve: 0.8,  open: 0.0, ow: 1.0, tilt: -0.1,  bounce: 0.8, arms: 0.0},
+  thinking: {brow: -0.1, browY: 0.04, lid: 0.7,  eyeS: 1.0,  curve: 0.0,  open: 0.0, ow: 1.0, tilt: 0.15,  bounce: 0.5, arms: 0.0},
+};
+
 export function character({palette = 'engineer', hat = 'none', glasses = false, seed = 1, scale = 1} = {}) {
   const P = PALETTES[palette];
   const root = new THREE.Group();
@@ -90,19 +105,33 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
   const fringe = circlePts(0, 0, 0.335, 0.315, 18, 0.15, Math.PI - 0.15);
   fringe.push([-0.24, 0.17], [-0.1, 0.21], [0.04, 0.17], [0.18, 0.22], [0.3, 0.12]);
   head.add(flat(fringe.reverse(), P.hair, 0.01, 0.012, seed + 11));
-  // calm half-lidded eyes
+  // ---- expressive face: eyes (lids blink/widen), brows, mouth (curve + open for speech) ----
+  const eyes = [], brows = [];
   for (const ex of [-0.11, 0.11]) {
-    head.add(flat(circlePts(ex, -0.01, 0.055, 0.05, 14, Math.PI, Math.PI * 2), INK, 0.02, 0.0, seed + 12));
-    const lid = stick(ex - 0.07, 0.01, ex + 0.07, 0.01, 0.009, 0.009); lid.position.z = 0.025; head.add(lid);
+    const eye = new THREE.Group(); eye.position.set(ex, -0.005, 0.02); head.add(eye);
+    eye.add(flat(circlePts(0, 0, 0.06, 0.07, 18), '#ffffff', 0.0, 0.012, seed + 12));
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.026, 12), inkMat); pupil.position.z = 0.012; eye.add(pupil);
+    const lid = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.09), fillMat('#f4ecdc')); lid.position.set(0, 0.05, 0.016); eye.add(lid);
+    const lidLine = stick(-0.065, -0.045, 0.065, -0.045, 0.008, 0.008); lid.add(lidLine); lidLine.position.z = 0.002;
+    eyes.push({eye, lid, pupil});
+    const brow = new THREE.Group(); brow.position.set(ex, 0.13, 0.05); head.add(brow);
+    brow.add(stick(-0.065, 0, 0.065, 0, 0.011, 0.011));
+    brows.push({brow, side: ex < 0 ? -1 : 1});
   }
-  // tiny smile
-  const sm = circlePts(0, -0.11, 0.06, 0.035, 10, Math.PI * 1.15, Math.PI * 1.85);
-  for (let i = 0; i < sm.length - 1; i++) { const s = stick(sm[i][0], sm[i][1], sm[i + 1][0], sm[i + 1][1], 0.008, 0.008); s.position.z = 0.025; head.add(s); }
+  const mouth = new THREE.Group(); mouth.position.set(0, -0.12, 0.03); head.add(mouth);
+  const curve = new THREE.Group(); mouth.add(curve);
+  for (let i = 0; i < 8; i++) {
+    const x0 = -0.065 + i * 0.13 / 8, x1 = -0.065 + (i + 1) * 0.13 / 8;
+    curve.add(stick(x0, 0.04 * (x0 / 0.065) ** 2, x1, 0.04 * (x1 / 0.065) ** 2, 0.008, 0.008));
+  }
+  const openM = new THREE.Group(); mouth.add(openM); openM.position.y = -0.01;
+  openM.add(flat(circlePts(0, 0, 0.055, 0.06, 20), '#7a2a30', 0.0, 0.012, seed + 19));
+  const tongue = new THREE.Mesh(new THREE.CircleGeometry(0.03, 12), fillMat('#d9686f')); tongue.position.set(0, -0.032, 0.004); tongue.scale.y = 0.55; openM.add(tongue);
   if (glasses) {
     for (const ex of [-0.11, 0.11]) {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.075, 0.095, 24), inkMat); ring.position.set(ex, -0.0, 0.03); head.add(ring);
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.075, 0.095, 24), inkMat); ring.position.set(ex, -0.0, 0.045); head.add(ring);
     }
-    const br = stick(-0.035, 0.0, 0.035, 0.0, 0.01, 0.01); br.position.z = 0.03; head.add(br);
+    const br = stick(-0.035, 0.0, 0.035, 0.0, 0.01, 0.01); br.position.z = 0.045; head.add(br);
   }
   if (hat === 'cap') {
     head.add(flat(circlePts(0, 0.17, 0.3, 0.13, 20, 0, Math.PI), P.jacket2, 0.035, 0.02, seed + 13));
@@ -120,12 +149,37 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
   root.add(blob);
   root.scale.setScalar(scale);
   const phase = rng(seed)() * 6;
+  // pose is set from outside each frame: {emo, talk 0..1}. Everything is a pure function of time (no state).
+  root.userData.pose = {emo: 'neutral', talk: 0};
   root.userData.update = (t, camPos, baseYaw = 0) => {
-    body.position.y = Math.abs(Math.sin(t * 2.2 + phase)) * 0.015;
-    head.rotation.z = Math.sin(t * 1.3 + phase) * 0.05;
-    head.position.y = 1.56 + Math.sin(t * 1.9 + phase) * 0.008;
-    armL.rotation.z = Math.sin(t * 1.6 + phase) * 0.08;
-    armR.rotation.z = -Math.sin(t * 1.4 + phase + 1) * 0.08;
+    const {emo, talk} = root.userData.pose;
+    const E = EMO[emo] || EMO.neutral;
+    const bt = ((t * 0.33 + phase * 0.37) % 1);
+    const blink = bt < 0.045 ? Math.sin(bt / 0.045 * Math.PI) : 0;           // quick blink about every 3 s
+    const lidOpen = Math.max(0, E.lid * (1 - blink));
+    for (const e of eyes) {
+      e.lid.position.y = -0.025 + lidOpen * 0.14;
+      e.eye.scale.set(1, E.eyeS * (1 - 0.5 * blink * (E.lid > 0.7 ? 1 : 0)), 1);
+      e.pupil.position.x = Math.sin(t * 0.7 + phase) * 0.012;
+    }
+    for (const b of brows) {
+      b.brow.rotation.z = b.side * E.brow + (talk > 0.15 ? Math.sin(t * 6 + phase) * 0.04 * talk : 0);
+      b.brow.position.y = 0.13 + E.browY + talk * 0.015;
+    }
+    const open = talk > 0 ? Math.min(1, Math.max(E.open * 0.3, talk * 1.3)) : E.open;
+    openM.scale.set(E.ow * (0.8 + 0.4 * open), Math.max(0.001, open), 1);
+    openM.visible = open > 0.04;
+    curve.scale.y = openM.visible && open > 0.35 ? 0.0001 : E.curve;
+    curve.scale.x = 1 + 0.25 * Math.max(0, E.curve);
+    mouth.position.y = -0.12 - 0.02 * open;
+    // body language: bounce, head tilt/nod, arm raises, small gestures while talking
+    body.position.y = Math.abs(Math.sin(t * 2.2 * E.bounce + phase)) * 0.015 * E.bounce;
+    head.rotation.z = Math.sin(t * 1.3 + phase) * 0.05 + E.tilt;
+    head.rotation.x = talk > 0 ? Math.sin(t * 9 + phase) * 0.045 * talk : 0;
+    head.position.y = 1.56 + Math.sin(t * 1.9 + phase) * 0.008 + (E.eyeS > 1.2 ? 0.012 : 0);
+    const raise = E.arms * 2.0 * (0.75 + 0.25 * Math.sin(t * 3.2 + phase)) + (talk > 0 ? talk * 0.5 * Math.max(0.3, E.arms + 0.2) * Math.sin(t * 7 + phase) : 0);
+    armL.rotation.z = Math.sin(t * 1.6 + phase) * 0.08 - raise;
+    armR.rotation.z = -Math.sin(t * 1.4 + phase + 1) * 0.08 + raise * (E.arms > 0.4 ? 1 : 0.35);
     // turn toward camera, clamped yaw
     const wp = new THREE.Vector3(); root.getWorldPosition(wp);
     let yaw = Math.atan2(camPos.x - wp.x, camPos.z - wp.z) - baseYaw;

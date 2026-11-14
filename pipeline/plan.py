@@ -3,7 +3,7 @@ import argparse, json, os, sys
 from common import next_publish, formats_for, ROOT
 import make_story
 
-CHUNK = int(os.environ.get("CHUNK_FRAMES", 450))
+CHUNK = int(os.environ.get("CHUNK_FRAMES", 300))
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--formats", default="")   # e.g. "short,long" to override the weekly schedule

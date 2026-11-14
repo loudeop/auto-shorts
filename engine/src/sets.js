@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {rng, toon, box, ground, sidewalk, lampPost, facade, paintTex} from './kit.js';
 
 // Locations sit far apart on the x axis so one scene can hold all of them.
-export const LOC = {street_night: 0, street_day: 300, office: 600, yard: 700, workshop: 800, lab: 900};
+export const LOC = {street_night: 0, street_day: 300, office: 600, yard: 700, workshop: 800, lab: 900, cave: 1000, desert: 1300, forest: 1600, harbor: 1900, castle: 2200};
 
 // smooth 0..1 between a and b (seconds)
 export const ease = (t, a, b) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * (3 - 2 * x); };

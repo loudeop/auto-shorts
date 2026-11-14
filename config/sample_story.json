@@ -1,11 +1,13 @@
-{"title": "The Pink Cell Trick", "description": "A short sample story used for testing.", "tags": ["sample"],
- "cast": [{"palette": "red", "hat": "cap", "glasses": false}, {"palette": "teal", "hat": "none", "glasses": true}],
+{"title": "The Fake Gold Mine", "description": "A sample story used for testing the pipeline.", "tags": ["sample"], "music": "dusty western, tense plucked guitar and low strings, 90 bpm",
+ "cast": [{"palette": "mustard", "hat": "top", "glasses": false}, {"palette": "teal", "hat": "cap", "glasses": true}, {"palette": "red", "hat": "bowler", "glasses": false}],
  "facts": [{"claim": "sample", "sources": ["https://example.com/a", "https://example.com/b"]}],
  "shots": [
-  {"location": "street_night", "who": [0], "label": "PINK CELL", "label_word": 2, "text": "They painted the jail cell pink, and the fights stopped."},
-  {"location": "office", "who": [0, 1], "label": "THE TEST", "label_word": 3, "text": "You see, a scientist wanted to know if a colour could calm people down."},
-  {"location": "lab", "who": [1], "label": "TWO WEEKS", "label_word": 4, "text": "So the team tried it in one room and watched what happened."},
-  {"location": "workshop", "who": [0, 1], "label": "", "label_word": 0, "text": "Nobody in that room acted angry for weeks, and the word spread fast."},
-  {"location": "yard", "who": [0], "label": "SIMPLE FIX", "label_word": 3, "text": "Other jails copied the idea, though later studies found the effect fades."},
-  {"location": "street_day", "who": [0, 1], "label": "", "label_word": 0, "text": "Sometimes a cheap trick works for a while, and then it stops."}
+  {"location": "cave", "who": [0], "speaker": "narrator", "emotion": ["smug"], "object": "gold", "label": "FAKE GOLD", "label_word": 2, "text": "A man sold a worthless mine by loading it with gold dust."},
+  {"location": "cave", "who": [0, 1], "speaker": 0, "emotion": ["happy", "worried"], "object": "", "label": "", "label_word": 0, "text": "Gentlemen, <short pause> this mine is full of gold!"},
+  {"location": "cave", "who": [1, 0], "speaker": 1, "emotion": ["shocked", "smug"], "object": "", "label": "", "label_word": 0, "text": "Wait, that rock is glittering!"},
+  {"location": "cave", "who": [0], "speaker": "narrator", "emotion": ["smug"], "object": "dynamite", "label": "THE TRICK", "label_word": 1, "text": "He fired a shotgun full of gold dust into the walls."},
+  {"location": "cave", "who": [1, 2], "speaker": "narrator", "emotion": ["worried", "thinking"], "object": "", "label": "", "label_word": 0, "text": "Nobody noticed that the shiny flecks sat on the surface only."},
+  {"location": "cave", "who": [2], "speaker": 2, "emotion": ["angry"], "object": "pickaxe", "label": "", "label_word": 0, "text": "There is nothing deeper than the dust! <sigh>"},
+  {"location": "harbor", "who": [1], "speaker": "narrator", "emotion": ["sad"], "object": "coin", "label": "BANKRUPT", "label_word": 1, "text": "By then the buyers had paid and the seller had left town."},
+  {"location": "harbor", "who": [0, 1], "speaker": "narrator", "emotion": ["smug", "scared"], "object": "", "label": "", "label_word": 0, "text": "Sometimes the shiniest deal is the emptiest one."}
  ]}

@@ -12,10 +12,17 @@ import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass
 import timing from './timing.json';
 import flags from './flags.json';
 import {buildWorld} from './autoworld.js';
-import {cameraAt, dipAt, LIGHTS, CUTS} from './camera.js';
+import {cameraAt, dipAt, whipAt, LIGHTS, CUTS} from './camera.js';
 
 const LONG = timing.format === 'long';
 const FOV = LONG ? 62 : 80;
+
+// horizontal motion blur used for the whip-pan between locations
+const Whip = {
+  uniforms: {tDiffuse: {value: null}, amount: {value: 0}},
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv; void main(){ vec4 c = vec4(0.0); float w = 0.0; for (int i = -8; i <= 8; i++) { float f = float(i) / 8.0; float k = 1.0 - abs(f) * 0.6; c += texture2D(tDiffuse, vUv + vec2(f * amount * 0.11, 0.0)) * k; w += k; } gl_FragColor = c / w; }',
+};
 
 const Vignette = {
   uniforms: {tDiffuse: {value: null}, amount: {value: 0.32}},
@@ -70,10 +77,12 @@ const Scene = ({frame, fps}) => {
     const bokeh = flags.bokeh ? new BokehPass(scene, camera, {focus: 5, aperture: 0.0025, maxblur: 0.006}) : null;
     if (bokeh) c.addPass(bokeh);
     c.addPass(new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.2, 0.4, 0.92));
+    const whip = new ShaderPass(Whip);
+    c.addPass(whip);
     c.addPass(new ShaderPass(Grade));
     c.addPass(new ShaderPass(Vignette));
     c.addPass(new OutputPass());
-    return {c, bokeh};
+    return {c, bokeh, whip};
   }, [gl, scene, camera, size.width, size.height]);
 
   const tRef = useRef(t); tRef.current = t;
@@ -93,9 +102,10 @@ const Scene = ({frame, fps}) => {
     scene.background = null;
     lights.sky.position.copy(cam.pos);
     const su = lights.sky.material.uniforms; su.top.value.set(L.top); su.hor.value.set(L.hor);
-    su.sunDir.value.set(L.sunOff[0], L.sunOff[1], L.sunOff[2]).normalize(); su.sunOn.value = (cam.plan.light === 'day' || cam.plan.light === 'morning' || cam.plan.light === 'yard') ? 1 : 0;
+    su.sunDir.value.set(L.sunOff[0], L.sunOff[1], L.sunOff[2]).normalize(); su.sunOn.value = ['day', 'morning', 'yard', 'desert', 'forest', 'harbor'].includes(cam.plan.light) ? 1 : 0;
     if (L.pt) { lights.pt.color.set(L.pt.c); lights.pt.intensity = L.pt.i; lights.pt.distance = L.pt.d; lights.pt.position.set(A[0] + L.pt.p[0], A[1] + L.pt.p[1], A[2] + L.pt.p[2]); } else lights.pt.intensity = 0;
     world.update(tt, camera, cam.key);
+    comp.whip.uniforms.amount.value = cam.whip;
     if (comp.bokeh) comp.bokeh.uniforms.focus.value = cam.pos.distanceTo(cam.look);
   }, 0);
   useFrame(() => { comp.c.render(); }, 1);

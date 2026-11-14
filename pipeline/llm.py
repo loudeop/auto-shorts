@@ -4,6 +4,7 @@ import json, os, re, requests
 
 T = 180
 
+
 # tried in order until one works; set GEMINI_MODEL to force a single model
 GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
 
