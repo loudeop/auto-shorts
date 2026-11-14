@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import timing from './timing.json';
 import story from './story.json';
 import {LOC} from './sets.js';
+import flags from './flags.json';
 
 // monotone cubic time warp: beat times per path key -> path position 0..1 (ease in/out)
 export function warpU(T, t) {
@@ -37,6 +38,17 @@ export const LIGHTS = {
   harbor: {sun: '#fff0cf', si: 2.6, sky: '#a9d8ff', gnd: '#8a7a6a', hi: 1.15, fog: '#cfe3ee', near: 80, far: 420, sunOff: [-40, 70, 50], shadow: 40, top: '#4a95d8', hor: '#d9eef7', pt: null},
   castle: {sun: '#ffe0b0', si: 1.3, sky: '#aab0c0', gnd: '#6a6258', hi: 0.95, fog: '#3a3630', near: 20, far: 75, sunOff: [-6, 9, 7], shadow: 10, top: '#222', hor: '#333', pt: {c: '#ffb066', i: 12, p: [0, 5, -1], d: 16}},
 };
+
+// calm palette: every light preset is made a little darker, less saturated and gentler (flags.calm 0 turns it off, 1 = full)
+const CALM = flags.calm === undefined ? 1 : flags.calm;
+const soften = (hex, ds, dl) => new THREE.Color(hex).offsetHSL(0, ds, dl).getStyle();
+if (CALM) {
+  for (const L of Object.values(LIGHTS)) {
+    for (const k of ['sky', 'gnd', 'fog', 'top', 'hor']) if (L[k]) L[k] = soften(L[k], -0.12 * CALM, -0.07 * CALM);
+    L.si *= 1 - 0.12 * CALM; L.hi *= 1 - 0.08 * CALM;
+    if (L.pt) L.pt = {...L.pt, i: L.pt.i * (1 - 0.1 * CALM)};
+  }
+}
 
 const v = (a) => new THREE.Vector3(...a);
 

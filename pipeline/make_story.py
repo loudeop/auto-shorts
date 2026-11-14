@@ -1,7 +1,7 @@
 """Idea -> script -> voices/music/sfx -> timing for ONE video. Output folder holds everything the renderer needs."""
 import argparse, json, os, re, sys
 from common import ROOT, history
-import llm, audio
+import llm, audio, catalog
 
 LOCS = {"street_day": "city street in daylight", "street_night": "city street at night", "office": "office / classroom / study",
         "yard": "back yard / construction yard", "workshop": "factory / workshop", "lab": "laboratory / weather room",
@@ -23,7 +23,8 @@ Beats: hook (a strange action + one exact detail, no intro) -> stakes -> doubt -
 Rules: every fact needs 2 independent sources (full URLs). Leave out anything single-source or disputed. No medical or money advice, no invented quotes from real people, no graphic injury. Invented side characters are fine but never present invented events as history.
 
 WORLD: choose the ONE location that fits the story best and stay there for most shots (at most 3 locations in total, switch only when the story really moves). Locations: {locs}.
-CAST: 2-4 invented characters (palette from {pal}; hat none|bowler|cap|top; glasses true/false).
+CAST: 2-5 invented characters who look like their part in the story. Give each a "role" from: {roles} (a role is a full costume: hat, tools, outfit). Optionally add "costume" (up to 3 extra pieces from: {costume}), "held" (the tool they carry and play with, from: {held}), "hair" ({hair}), "hair_color" ({hc}), "skin" ({skin}), "build" ({builds}), "glasses" true/false, and a "palette" for the clothes ({pal}). The main character should carry a held object that suits the story, and the characters should look clearly different from each other.
+DETAILS: "details" = 6-8 tiny things that make THIS story world feel lived in, from: {details}. For poster, note and calendar add "text" (1-3 UPPERCASE words that belong to the story, e.g. WANTED, CLOSED, MAY). Prefer details that tell the story (a mouse and crumbs in a poor place, a steaming teacup where someone just left).
 DIALOGUE: about 40 percent of shots are a character speaking ("speaker" = cast index, who must be in "who"; short, punchy, in character, max 14 words). The other shots are narration ("speaker": "narrator").
 EMOTION: every shot has an emotion per character in "who" (list, same order) from: {emo}. Vary them; use neutral rarely. Match the beat (shock at twists, worry at doubt, smug at schemes, interested when someone leans in to look, disgusted at something foul or fake, bored for the one who does not care). The animation turns each emotion into body language (fear = backing away and trembling, sadness = slumped and slow, joy = open arms and bounce).
 PROPS: "props" = 4-6 object names from the list below that belong in this story world; they are scattered visibly around the characters.
@@ -33,7 +34,8 @@ TAGS: you may use <laugh>, <sigh>, <breath> or <short pause> inside text, at mos
 MUSIC: "music" = one sentence brief for the score: genre, mood, instruments, tempo (e.g. "dusty western, tense plucked guitar and low strings, 90 bpm").
 Return ONLY JSON, no markdown:
 {{"title": "<=70 chars, no clickbait lies", "description": "2-3 sentences", "tags": ["..."], "music": "...", "props": ["lantern", "crate"],
- "cast": [{{"palette":"red","hat":"cap","glasses":false}}],
+ "cast": [{{"role":"cowboy","held":"lasso","hair":"","skin":"tan","build":"tall","glasses":false,"palette":"red"}}],
+ "details": [{{"name":"poster","text":"WANTED"}}, {{"name":"teacup"}}, {{"name":"mouse"}}],
  "facts": [{{"claim":"...","sources":["https://...","https://..."]}}],
  "shots": [{{"location":"cave","who":[0,1],"speaker":"narrator","emotion":["shocked","worried"],"object":"gold","label":"FAKE GOLD","label_word":2,"text":"exact words spoken in this shot"}}]}}"""
 
@@ -43,7 +45,7 @@ def validate(d, fmt):
     assert sp["shots"][0] <= len(shots) <= sp["shots"][1], f"{len(shots)} shots"
     words = sum(len(audio.clean(s["text"])[1].split()) for s in shots)
     assert sp["words"][0] <= words <= sp["words"][1], f"{words} words"
-    assert 1 <= len(d["cast"]) <= 4
+    assert 1 <= len(d["cast"]) <= 5
     assert d["facts"] and all(len(set(f.get("sources", []))) >= 2 for f in d["facts"]), "every fact needs 2 sources"
     assert len({s["location"] for s in shots}) <= 3, "too many locations"
     for s in shots:
@@ -57,6 +59,23 @@ def tidy(d):
     d["props"] = [p for p in d.get("props", []) if p in OBJECTS][:6]
     for c in d["cast"]:
         if c.get("palette") not in PALETTES: c["palette"] = "engineer"
+        c["role"] = c.get("role") if c.get("role") in catalog.ROLES else ""
+        c["costume"] = [x for x in (c.get("costume") or []) if x in catalog.COSTUME][:3]
+        c["held"] = c.get("held") if c.get("held") in catalog.HELD else ""
+        c["hair"] = c.get("hair") if c.get("hair") in catalog.HAIR else ""
+        c["hair_color"] = c.get("hair_color") if c.get("hair_color") in catalog.HAIR_COLORS else ""
+        c["skin"] = c.get("skin") if c.get("skin") in catalog.SKIN else ""
+        c["build"] = c.get("build") if c.get("build") in catalog.BUILDS else ""
+        c["glasses"] = bool(c.get("glasses"))
+    seen, details = set(), []
+    for x in d.get("details") or []:
+        x = {"name": x} if isinstance(x, str) else x
+        if isinstance(x, dict) and x.get("name") in catalog.DETAILS and x["name"] not in seen:
+            seen.add(x["name"]); details.append({"name": x["name"], "text": str(x.get("text", ""))[:12].upper()})
+    for fill in ("candle", "plant", "papers", "mouse", "poster", "teacup"):      # never leave a world bare
+        if len(details) >= 5: break
+        if fill not in seen: seen.add(fill); details.append({"name": fill, "text": ""})
+    d["details"] = details[:8]
     n = len(d["cast"])
     for i, s in enumerate(d["shots"]):
         s["key"] = f"s{i + 1:02d}"
@@ -80,7 +99,9 @@ def build(fmt, out, sample=False):
     else:
         recent = "; ".join(h["title"] for h in history()[-60:]) or "none yet"
         prompt = PROMPT.format(target=SPEC[fmt]["target"], recent=recent, locs="; ".join(f"{k} = {v}" for k, v in LOCS.items()),
-                               pal=", ".join(PALETTES), emo=", ".join(EMOTIONS), objs=", ".join(OBJECTS))
+                               pal=", ".join(PALETTES), emo=", ".join(EMOTIONS), objs=", ".join(OBJECTS), roles=", ".join(catalog.ROLES),
+                               costume=", ".join(catalog.COSTUME), held=", ".join(catalog.HELD), hair=", ".join(catalog.HAIR), hc=", ".join(catalog.HAIR_COLORS),
+                               skin=", ".join(catalog.SKIN), builds=", ".join(catalog.BUILDS), details=", ".join(catalog.DETAILS))
         for attempt in range(1, 5):
             try:
                 d = llm.generate_json(prompt); words = validate(d, fmt); break
@@ -98,12 +119,12 @@ def build(fmt, out, sample=False):
                for p, s in zip(placed, d["shots"])]
     timing = dict(fps=30, duration=duration, format=fmt, width=W, height=H, shots=shots_t, env=env)
     json.dump(timing, open(os.path.join(out, "timing.json"), "w"))
-    story = dict(title=d["title"], format=fmt, cast=d["cast"], props=d["props"],
+    story = dict(title=d["title"], format=fmt, cast=d["cast"], props=d["props"], details=d["details"],
                  shots=[{k: s[k] for k in ("key", "location", "who", "speaker", "emotion", "object", "label", "label_word", "mood", "cam") if k in s} for s in d["shots"]])
     json.dump(story, open(os.path.join(out, "story.json"), "w"), indent=1)
     json.dump(dict(title=d["title"][:95], description=d["description"], tags=d.get("tags", [])[:15], facts=d["facts"], format=fmt),
               open(os.path.join(out, "meta.json"), "w"), indent=1)
-    json.dump({"bokeh": False}, open(os.path.join(out, "flags.json"), "w"))
+    json.dump({"bokeh": False, "calm": float(os.environ.get("CALM", "1"))}, open(os.path.join(out, "flags.json"), "w"))
     with open(os.path.join(out, "script.md"), "w") as f:
         f.write(f"# {d['title']}\n\n" + "\n\n".join(f"**{s['key']}** ({s['location']}, {'narrator' if s['speaker']=='narrator' else 'cast '+str(s['speaker'])}, {','.join(s['emotion'])}) {s['text']}" for s in d["shots"]) + "\n\n## Facts and sources\n")
         for x in d["facts"]: f.write(f"- {x['claim']}\n" + "".join(f"  - {u}\n" for u in x["sources"]))

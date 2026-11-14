@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import {INK, rng} from './kit.js';
+import {ACC, ROLES, HAIR, SKIN, HAIR_COLORS, BUILDS} from './accessories.js';
+import {glow} from './glow.js';
 
 const inkMat = new THREE.MeshBasicMaterial({color: INK, side: THREE.DoubleSide});
 const fillCache = new Map();
@@ -81,8 +83,10 @@ export const EMO = {
 const ss = (x) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
 const mixEmo = (A, B, k) => { const o = {}; for (const key in A) o[key] = A[key] + ((B[key] === undefined ? A[key] : B[key]) - A[key]) * k; return o; };
 
-export function character({palette = 'engineer', hat = 'none', glasses = false, seed = 1, scale = 1} = {}) {
+export function character({palette = 'engineer', hat = 'none', glasses = false, seed = 1, scale = 1, role = '', costume = [], held = '', hair = '', hairColor = '', skin = '', build = ''} = {}) {
   const P = PALETTES[palette];
+  const skinC = SKIN[skin] || '#f4ecdc';
+  const hairCol = HAIR_COLORS[hairColor] || P.hair;
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
   // legs (thin tapered sticks) + feet
@@ -107,18 +111,19 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
   body.add(armL, armR);
   // head
   const head = new THREE.Group(); head.position.set(0, 1.56, 0.04); body.add(head);
-  head.add(flat(circlePts(0, 0, 0.33, 0.31, 36), '#f4ecdc', 0, 0.024, seed + 10));
+  head.add(flat(circlePts(0, 0, 0.33, 0.31, 36), skinC, 0, 0.024, seed + 10));
   // hair fringe
   const fringe = circlePts(0, 0, 0.335, 0.315, 18, 0.15, Math.PI - 0.15);
   fringe.push([-0.24, 0.17], [-0.1, 0.21], [0.04, 0.17], [0.18, 0.22], [0.3, 0.12]);
-  head.add(flat(fringe.reverse(), P.hair, 0.01, 0.012, seed + 11));
+  const fringeMesh = flat(fringe.reverse(), hairCol, 0.01, 0.012, seed + 11); fringeMesh.visible = hair !== 'bald'; head.add(fringeMesh);
+  if (HAIR[hair]) head.add(HAIR[hair]({flat, circlePts, stick, THREE}, hairCol));
   // ---- expressive face: eyes (lids blink/widen), brows, mouth (curve + open for speech) ----
   const eyes = [], brows = [];
   for (const ex of [-0.11, 0.11]) {
     const eye = new THREE.Group(); eye.position.set(ex, -0.005, 0.02); head.add(eye);
     eye.add(flat(circlePts(0, 0, 0.06, 0.07, 18), '#ffffff', 0.0, 0.012, seed + 12));
     const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.026, 12), inkMat); pupil.position.z = 0.012; eye.add(pupil);
-    const lid = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.09), fillMat('#f4ecdc')); lid.position.set(0, 0.05, 0.016); eye.add(lid);
+    const lid = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.09), fillMat(skinC)); lid.position.set(0, 0.05, 0.016); eye.add(lid);
     const lidLine = stick(-0.065, -0.045, 0.065, -0.045, 0.008, 0.008); lid.add(lidLine); lidLine.position.z = 0.002;
     eyes.push({eye, lid, pupil});
     const brow = new THREE.Group(); brow.position.set(ex, 0.13, 0.05); head.add(brow);
@@ -140,13 +145,33 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
     }
     const br = stick(-0.035, 0.0, 0.035, 0.0, 0.01, 0.01); br.position.z = 0.045; head.add(br);
   }
-  if (hat === 'cap') {
+  // ---- costume: role preset + extra pieces + held tool, each mounted by slot ----
+  const R = ROLES[role] || {ids: [], held: ''};
+  const ids = [...R.ids, ...costume.filter((id) => ACC[id] && ACC[id].slot !== 'hand')];
+  const heldId = ACC[held] && ACC[held].slot === 'hand' ? held : (R.held || '');
+  if (heldId) ids.push(heldId);
+  const H = {flat, circlePts, stick, THREE, glow};
+  const anims = [];
+  const usedSlots = new Set();
+  for (const id of ids) {
+    const A = ACC[id]; if (!A) continue;
+    if ((A.slot === 'head' || A.slot === 'hand') && usedSlots.has(A.slot)) continue;   // one hat, one tool
+    usedSlots.add(A.slot);
+    const obj = A.build(H, P, hairCol);
+    if (A.slot === 'head' || A.slot === 'face') head.add(obj);
+    else if (A.slot === 'hand') { obj.position.set(0.085, -0.45, 0.02); armR.add(obj); }
+    else body.add(obj);
+    if (A.anim) anims.push({g: obj, fn: A.anim});
+  }
+  const hasHeadItem = usedSlots.has('head');
+  // legacy hats are skipped when a costume already put something on the head
+  if (hat === 'cap' && !hasHeadItem) {
     head.add(flat(circlePts(0, 0.17, 0.3, 0.13, 20, 0, Math.PI), P.jacket2, 0.035, 0.02, seed + 13));
     head.add(flat([[-0.05, 0.18], [0.42, 0.16], [0.42, 0.12], [-0.05, 0.13]], P.jacket2, 0.036, 0.02, seed + 14));
-  } else if (hat === 'bowler') {
+  } else if (hat === 'bowler' && !hasHeadItem) {
     head.add(flat(circlePts(0, 0.2, 0.24, 0.2, 20, 0, Math.PI), '#2e2a2b', 0.035, 0.02, seed + 15));
     head.add(flat([[-0.38, 0.2], [0.38, 0.2], [0.38, 0.15], [-0.38, 0.15]], '#2e2a2b', 0.036, 0.02, seed + 16));
-  } else if (hat === 'top') {
+  } else if (hat === 'top' && !hasHeadItem) {
     head.add(flat([[-0.2, 0.2], [0.2, 0.2], [0.18, 0.62], [-0.18, 0.62]], '#2e2a2b', 0.035, 0.02, seed + 17));
     head.add(flat([[-0.36, 0.22], [0.36, 0.22], [0.36, 0.16], [-0.36, 0.16]], '#2e2a2b', 0.036, 0.02, seed + 18));
   }
@@ -154,7 +179,8 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
   const blob = new THREE.Mesh(new THREE.CircleGeometry(0.42, 24), new THREE.MeshBasicMaterial({color: '#000', transparent: true, opacity: 0.22, depthWrite: false}));
   blob.rotation.x = -Math.PI / 2; blob.position.y = 0.01; blob.scale.y = 0.55;
   root.add(blob);
-  root.scale.setScalar(scale);
+  const B = BUILDS[build] || [1, 1];
+  root.scale.set(B[0] * scale, B[1] * scale, scale);
   const phase = rng(seed)() * 6;
   // pose is set from outside each frame: {emo, talk 0..1}. Everything is a pure function of time (no state).
   root.userData.pose = {emo: 'neutral', talk: 0, age: 99};
@@ -202,6 +228,7 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
     armL.rotation.z = (Math.sin(a * 1.6) * 0.08 - raise + wring + jit) * (1 - cL) - 3.3 * cL;
     armR.rotation.z = (-Math.sin(a * 1.4 + 1) * 0.08 + raise * (E.arms > 0.4 ? 1 : 0.35) - wring + jit) * (1 - cR) + 3.3 * cR;
     armL.position.z = 0.012 + cL * 0.14; armR.position.z = 0.012 + cR * 0.14;
+    for (const an of anims) an.fn(an.g, t, E);
     // turn toward camera, clamped yaw
     const wp = new THREE.Vector3(); root.getWorldPosition(wp);
     let yaw = Math.atan2(camPos.x - wp.x, camPos.z - wp.z) - baseYaw;

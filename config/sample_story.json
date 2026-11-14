@@ -7,19 +7,39 @@
  "music": "dusty western, tense plucked guitar and low strings, 90 bpm",
  "cast": [
   {
-   "palette": "mustard",
-   "hat": "top",
-   "glasses": false
+   "role": "prospector",
+   "held": "pickaxe",
+   "skin": "tan",
+   "build": "tall",
+   "palette": "mustard"
   },
   {
-   "palette": "teal",
-   "hat": "cap",
-   "glasses": true
+   "role": "miner",
+   "held": "lantern",
+   "skin": "brown",
+   "build": "short",
+   "glasses": true,
+   "palette": "teal"
   },
   {
-   "palette": "red",
-   "hat": "bowler",
-   "glasses": false
+   "role": "cowboy",
+   "held": "lasso",
+   "hair_color": "red",
+   "skin": "pale",
+   "palette": "red"
+  },
+  {
+   "role": "merchant",
+   "held": "moneybag",
+   "build": "wide",
+   "palette": "navy"
+  },
+  {
+   "role": "scientist",
+   "hair": "bun",
+   "hair_color": "blonde",
+   "skin": "dark",
+   "palette": "pink"
   }
  ],
  "facts": [
@@ -50,7 +70,7 @@
    "location": "cave",
    "who": [
     0,
-    1
+    3
    ],
    "speaker": 0,
    "emotion": [
@@ -66,7 +86,7 @@
    "location": "cave",
    "who": [
     1,
-    0
+    2
    ],
    "speaker": 1,
    "emotion": [
@@ -96,7 +116,7 @@
    "location": "cave",
    "who": [
     1,
-    2
+    4
    ],
    "speaker": "narrator",
    "emotion": [
@@ -125,7 +145,7 @@
   {
    "location": "harbor",
    "who": [
-    1
+    3
    ],
    "speaker": "narrator",
    "emotion": [
@@ -140,7 +160,7 @@
    "location": "harbor",
    "who": [
     0,
-    1
+    4
    ],
    "speaker": "narrator",
    "emotion": [
@@ -159,5 +179,33 @@
   "pickaxe",
   "chest",
   "coin"
+ ],
+ "details": [
+  {
+   "name": "poster",
+   "text": "WANTED"
+  },
+  {
+   "name": "teacup"
+  },
+  {
+   "name": "candle"
+  },
+  {
+   "name": "mouse"
+  },
+  {
+   "name": "cobweb"
+  },
+  {
+   "name": "coins"
+  },
+  {
+   "name": "bird"
+  },
+  {
+   "name": "note",
+   "text": "CLOSED"
+  }
  ]
 }

@@ -39,3 +39,10 @@ Change this in `config/schedule.json`.
 ## v2.1: body language and set dressing
 - 13 emotions now change the whole body, not just the face: happy = fast, open arms, upright; scared = backs away, trembles, hands to face; sad = slow, slumped, head bowed; interested = slow step toward the camera; disgusted = trunk sways side to side, hands held in; bored = bowed, slow head turns; angry = leans in, stomps; smug = relaxed, slow head turns; thinking = hand to face. Every emotion eases in over 0.35 s after a cut.
 - Each world is dressed with 6-8 large props (story-specific ones from the script plus defaults for the place) that bob slightly, and drifting particles: dust, fireflies, blowing sand or embers.
+
+## v2.2: costumes, tiny details, glow, calm palette
+- **Costume system** (`engine/src/accessories.js`): 20 roles (cowboy, miner, pirate, wizard, scientist, chef, knight...) that put on a hat, face/neck/torso/back pieces and a held tool. 30 wearable pieces, 18 held tools with their own motion (spinning lasso, swinging pickaxe, flickering torch, swaying lantern), 5 hair styles + bald, skin tones, hair colours and 4 body builds. The script picks a role per character (up to 5 characters), so each story gets its own cast.
+- **Tiny details** (`engine/src/details.js`): 23 small touches the script picks for its world: posters/notes/calendars carrying words from the story, steaming teacup, flickering candle, scurrying mouse, perched bird, moth round a light, dangling spider, footprints, spilled coins...
+- **Glow:** hero props, lamps, torches, coins, signs get a soft halo; every scene change blooms softly (warm light swell with the whip-pan).
+- **Calm palette:** background sets, lights, fog and the final colour grade are darker, less saturated and slightly teal; characters, props and glows stay bright so the eye lands on them. Strength is `CALM` (default 1; 0 = off, 0.5 = half) read by `pipeline/make_story.py`.
+- After editing `accessories.js` or `details.js`, run `python pipeline/check_catalog.py` so the script writer's lists stay in sync.

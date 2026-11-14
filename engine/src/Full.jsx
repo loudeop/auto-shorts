@@ -14,6 +14,7 @@ import flags from './flags.json';
 import {buildWorld} from './autoworld.js';
 import {cameraAt, dipAt, whipAt, LIGHTS, CUTS} from './camera.js';
 
+const CALM = flags.calm === undefined ? 1 : flags.calm;
 const LONG = timing.format === 'long';
 const FOV = LONG ? 62 : 80;
 
@@ -21,21 +22,21 @@ const FOV = LONG ? 62 : 80;
 const Whip = {
   uniforms: {tDiffuse: {value: null}, amount: {value: 0}},
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: 'uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv; void main(){ vec4 c = vec4(0.0); float w = 0.0; for (int i = -8; i <= 8; i++) { float f = float(i) / 8.0; float k = 1.0 - abs(f) * 0.6; c += texture2D(tDiffuse, vUv + vec2(f * amount * 0.11, 0.0)) * k; w += k; } gl_FragColor = c / w; }',
+  fragmentShader: 'uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv; void main(){ vec4 c = vec4(0.0); float w = 0.0; for (int i = -8; i <= 8; i++) { float f = float(i) / 8.0; float k = 1.0 - abs(f) * 0.6; c += texture2D(tDiffuse, vUv + vec2(f * amount * 0.11, 0.0)) * k; w += k; } gl_FragColor = vec4(c.rgb / w + vec3(1.0, 0.84, 0.58) * amount * 0.2 * (1.2 - length(vUv - 0.5) * 1.4), 1.0); }',
 };
 
 const Vignette = {
-  uniforms: {tDiffuse: {value: null}, amount: {value: 0.32}},
+  uniforms: {tDiffuse: {value: null}, amount: {value: 0.32 + 0.1 * CALM}},
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: 'uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - 0.5; float v = 1.0 - amount * smoothstep(0.25, 0.75, length(d * vec2(1.0, 0.8))); gl_FragColor = vec4(c.rgb * v, c.a); }',
 };
 
 const Grade = {
-  uniforms: {tDiffuse: {value: null}, sat: {value: 1.2}, con: {value: 1.08}, warm: {value: 0.035}},
+  uniforms: {tDiffuse: {value: null}, sat: {value: 1.2 - 0.26 * CALM}, con: {value: 1.08}, warm: {value: 0.035}, dark: {value: 1.0 - 0.09 * CALM}},
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float warm; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float warm; uniform float dark; varying vec2 vUv;
   void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 col = c.rgb; float l = dot(col, vec3(0.299,0.587,0.114));
-  col = mix(vec3(l), col, sat); col = (col - 0.5) * con + 0.5;
+  col = mix(vec3(l), col, sat); col = (col - 0.5) * con + 0.5; col *= dark;
   col += vec3(warm, warm*0.4, -warm) * smoothstep(0.35, 1.0, l); col += vec3(-0.01, 0.0, 0.03) * (1.0 - smoothstep(0.0, 0.45, l));
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a); }`,
 };
@@ -76,13 +77,14 @@ const Scene = ({frame, fps}) => {
     c.addPass(new RenderPass(scene, camera));
     const bokeh = flags.bokeh ? new BokehPass(scene, camera, {focus: 5, aperture: 0.0025, maxblur: 0.006}) : null;
     if (bokeh) c.addPass(bokeh);
-    c.addPass(new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.2, 0.4, 0.92));
+    const bloom = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.38, 0.55, 0.82);
+    c.addPass(bloom);
     const whip = new ShaderPass(Whip);
     c.addPass(whip);
     c.addPass(new ShaderPass(Grade));
     c.addPass(new ShaderPass(Vignette));
     c.addPass(new OutputPass());
-    return {c, bokeh, whip};
+    return {c, bokeh, whip, bloom};
   }, [gl, scene, camera, size.width, size.height]);
 
   const tRef = useRef(t); tRef.current = t;
@@ -106,6 +108,7 @@ const Scene = ({frame, fps}) => {
     if (L.pt) { lights.pt.color.set(L.pt.c); lights.pt.intensity = L.pt.i; lights.pt.distance = L.pt.d; lights.pt.position.set(A[0] + L.pt.p[0], A[1] + L.pt.p[1], A[2] + L.pt.p[2]); } else lights.pt.intensity = 0;
     world.update(tt, camera, cam.key);
     comp.whip.uniforms.amount.value = cam.whip;
+    comp.bloom.strength = 0.38 + cam.whip * 0.9;       // every scene change blooms softly
     if (comp.bokeh) comp.bokeh.uniforms.focus.value = cam.pos.distanceTo(cam.look);
   }, 0);
   useFrame(() => { comp.c.render(); }, 1);

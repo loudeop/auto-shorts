@@ -7,6 +7,9 @@ import {dressStreet, dressPlaza, dressOffice, dressYard, dressJoint, dressWeathe
 import * as P from './props.js';
 import {cave, desert, forest, harbor, castle} from './sets2.js';
 import {makeObject} from './objects.js';
+import {makeDetail} from './details.js';
+import {glow, dotTexture} from './glow.js';
+import flags from './flags.json';
 import {objPos} from './camera.js';
 import story from './story.json';
 import timing from './timing.json';
@@ -26,12 +29,24 @@ const DEFAULT_PROPS = {
 // slots around the action: [dx, dz (relative to the hero row), scale]. Big enough to read on a phone screen.
 const SLOTS = [[-2.7, -0.6, 1.4], [2.9, -0.4, 1.3], [-4.2, -2.2, 1.9], [4.4, -2.6, 1.7], [-2.2, 1.7, 1.0], [0.3, -3.4, 1.7], [3.6, 1.9, 0.9], [-3.4, 0.9, 1.2]];
 
-const dotTex = (() => {
-  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
-  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  const t = new THREE.CanvasTexture(c); return t;
-})();
+// calm palette: the set (not the characters or props) is pulled darker, less saturated and a little teal, so the eye rests on the action
+const CALM = flags.calm === undefined ? 1 : flags.calm;
+const DEEP = new THREE.Color('#1f3440');
+const calmCache = new Map();
+function calmify(root) {
+  if (!CALM) return;
+  root.traverse((o) => {
+    if (!o.isMesh || !o.material || o.userData.keep) return;
+    const m = o.material;
+    if (Array.isArray(m) || !m.color || m.isMeshBasicMaterial) return;      // basic materials = signs, lit windows, outlines: left bright
+    let c = calmCache.get(m);
+    if (!c) { c = m.clone(); c.color.offsetHSL(0, -0.1 * CALM, -0.09 * CALM); c.color.lerp(DEEP, 0.1 * CALM); calmCache.set(m, c); }
+    o.material = c;
+  });
+}
+const GLOWY = {lantern: '#ffd37a', bulb: '#fff2a8', gold: '#ffd95a', coin: '#ffd95a', key: '#ffd95a', trophy: '#ffd95a', chest: '#ffd95a', clock: '#fff2d0', flask: '#8fe8a8', battery: '#9ef0b0'};
+const WALLZ = {office: -5.28, lab: -5.28, workshop: -5.9, cave: -7.4, castle: -6.4, yard: -7.9, harbor: -9.0};
+const WALL_XS = [-4.2, -1.2, 2.3, 4.4, -2.9, 0.7, 3.6, -5.2];
 
 // drifting particles that suit the place: dust, fireflies, blowing sand or rising embers
 function particles(loc) {
@@ -42,7 +57,7 @@ function particles(loc) {
   for (let i = 0; i < N; i++) { base[i * 3] = ox + (r() - 0.5) * 12; base[i * 3 + 1] = 0.3 + r() * 4.2; base[i * 3 + 2] = K.hz - 4 + r() * 8; }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const color = {dust: '#fff3d0', fly: '#e8ff7a', sand: '#e8c890', ember: '#ff9a3c'}[kind];
-  const mat = new THREE.PointsMaterial({color, size: kind === 'fly' ? 0.16 : 0.09, map: dotTex, transparent: true, opacity: kind === 'dust' ? 0.6 : 0.9, depthWrite: false});
+  const mat = new THREE.PointsMaterial({color, size: kind === 'fly' ? 0.16 : 0.09, map: dotTexture(), transparent: true, opacity: kind === 'dust' ? 0.6 : 0.9, depthWrite: false});
   const pts = new THREE.Points(geo, mat); pts.frustumCulled = false;
   const update = (t) => {
     for (let i = 0; i < N; i++) {
@@ -110,6 +125,8 @@ export function buildWorld() {
     }
   }
 
+  calmify(W);   // only the set so far: dressing, details, props and cast stay bright
+
   // set dressing: big story props around the action, gently bobbing, and ambient particles
   const bobbers = [];
   for (const loc of used) {
@@ -121,9 +138,32 @@ export function buildWorld() {
       if (loc === 'office' && dx < -0.5 && dz > -0.5) return;            // that is where the desk is
       const o = makeObject(names[(i + loc.length) % names.length]);
       o.position.set(ox + dx, K.hy, K.hz + dz); o.scale.setScalar(sc * (0.9 + r() * 0.3));
-      const ry = (r() - 0.5) * 1.4; o.rotation.y = ry; W.add(o); bobbers.push({o, y: K.hy, ry, ph: r() * 6});
+      const ry = (r() - 0.5) * 1.4; o.rotation.y = ry;
+      const gname = names[(i + loc.length) % names.length];
+      if (GLOWY[gname]) { const gl = glow(GLOWY[gname], 1.5, 0.28); gl.position.y = 0.45; o.add(gl); }
+      W.add(o); bobbers.push({o, y: K.hy, ry, ph: r() * 6});
     });
     const p = particles(loc); W.add(p.pts); updaters.push(p.update);
+  }
+
+  // tiny story details (posters with story words, steaming cups, candles, mice, birds, moths...)
+  for (const loc of used) {
+    const K = KIND[loc], ox = LOC[loc], rr = rng(loc.length * 31 + 9);
+    (story.details || []).slice(0, 8).forEach((spec, i) => {
+      const D = makeDetail(spec.name, spec.text); if (!D) return;
+      const side = (i % 2 ? 1 : -1);
+      let x, y = K.hy, z;
+      if (D.place === 'floor' || D.place === 'stool') {
+        x = side * (1.6 + rr() * 2.6); z = K.hz + (rr() * 3.2 - 1.6); if (loc.startsWith('street')) z = Math.min(z, K.hz + 0.9);
+        if (D.place === 'stool') { const st = new THREE.Group(); st.add(box(0.4, 0.4, 0.4, '#8a5a3b', {y: 0.2, thick: 0.01})); st.position.set(ox + x, K.hy, z); W.add(st); y = K.hy + 0.4; }
+      } else if (D.place === 'wall') {
+        if (WALLZ[loc] !== undefined) { x = WALL_XS[i % WALL_XS.length]; y = 1.7 + rr() * 1.1; z = WALLZ[loc] + 0.08; }
+        else if (spec.text) { x = side * 3.4; z = K.hz - 1.8; const post = new THREE.Group(); post.add(cyl(0.04, 0.04, 1.5, '#6b4430', {y: 0.75})); post.position.set(ox + x, K.hy, z); W.add(post); y = K.hy + 1.7; z += 0.05; }
+        else return;                                                   // no wall here
+      } else { x = side * (2.8 + rr() * 1.4); y = 2.7 + rr() * 0.7; z = K.hz - 1.8; }
+      D.g.position.set(ox + x, y, z); W.add(D.g);
+      if (D.update) updaters.push((t) => D.update(t));
+    });
   }
 
   // the story's cast, one copy per location (only the ones named in the current shot are visible)
@@ -132,7 +172,8 @@ export function buildWorld() {
     heroes[loc] = story.cast.map((c, ci) => {
       const h = character({
         palette: PALETTES[c.palette] ? c.palette : 'engineer', hat: HATS.includes(c.hat) ? c.hat : 'none',
-        glasses: !!c.glasses, seed: 200 + ci * 7,
+        glasses: !!c.glasses, seed: 200 + ci * 7, role: c.role || '', costume: c.costume || [], held: c.held || '',
+        hair: c.hair || '', hairColor: c.hair_color || '', skin: c.skin || '', build: c.build || '',
       });
       h.visible = false; W.add(h); chars.push(h); return h;
     });
@@ -145,6 +186,7 @@ export function buildWorld() {
     const K = KIND[sh.location];
     const s = sign(String(sh.label).toUpperCase().slice(0, 26), 2.1, 0.8, {bg: '#f2e6cc', w: 640, h: 240, font: 'bold 110px Arial, sans-serif'});
     s.position.set(LOC[sh.location], K.hy + 2.45, K.hz - 0.5);
+    const sg = glow('#fff1c4', 3.4, 0.22); sg.position.z = -0.05; s.add(sg);
     s.visible = false; W.add(s);
     signs[sh.key] = {g: s, word: Math.max(0, sh.label_word | 0)};
   }
@@ -155,6 +197,7 @@ export function buildWorld() {
     if (!sh.object) continue;
     const o = makeObject(sh.object); const p = objPos(sh.location);
     o.position.set(p[0], p[1], p[2]); o.scale.setScalar(1.5); o.rotation.y = -0.35;
+    const og = glow('#ffd28a', 1.5, 0.45); og.position.y = 0.5; o.add(og); o.userData.glow = og;
     o.visible = false; W.add(o); objs[sh.key] = o;
   }
 
@@ -180,7 +223,7 @@ export function buildWorld() {
     for (const b of bobbers) { b.o.position.y = b.y + Math.abs(Math.sin(t * 1.4 + b.ph)) * 0.03; b.o.rotation.y = b.ry + Math.sin(t * 0.5 + b.ph) * 0.15; }
     for (const [key, o] of Object.entries(objs)) {
       o.visible = key === shotKey;
-      if (o.visible) { const sh = SHOTS[key]; o.scale.setScalar(1.5 * Math.max(0.001, ease(t, timing.shots.find((x) => x.key === key).start, timing.shots.find((x) => x.key === key).start + 0.3))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12; }
+      if (o.visible) { o.userData.glow.material.opacity = 0.38 + 0.14 * Math.sin(t * 3); const sh = SHOTS[key]; o.scale.setScalar(1.5 * Math.max(0.001, ease(t, timing.shots.find((x) => x.key === key).start, timing.shots.find((x) => x.key === key).start + 0.3))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12; }
     }
     for (const [key, o] of Object.entries(signs)) {
       const on = key === shotKey;
