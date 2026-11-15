@@ -1,0 +1,146 @@
+name: daily-3d-story
+
+on:
+  schedule:
+    - cron: "30 13 * * *"      # 19:00 IST every day; renders overnight, publishes at the next 04:30 IST
+  workflow_dispatch:
+    inputs:
+      formats:
+        description: "Override: short | long | short,long (empty = weekly schedule)"
+        required: false
+        default: ""
+      sample:
+        description: "Use the built-in sample story (no LLM key needed)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Render only, do not upload"
+        type: boolean
+        default: false
+
+concurrency:
+  group: daily-3d-story
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      videos: ${{ steps.plan.outputs.videos }}
+      publish_at: ${{ steps.plan.outputs.publish_at }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: |
+          sudo apt-get update -y && sudo apt-get install -y espeak-ng ffmpeg
+          pip install -r requirements.txt
+      - id: plan
+        working-directory: pipeline
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: python plan.py --formats "${{ inputs.formats }}" ${{ inputs.sample && '--sample' || '' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: project
+          path: work/
+          retention-days: 3
+
+  render:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350            # a hosted job is capped at 6 h, so long videos are split into chunks
+    strategy:
+      fail-fast: true
+      max-parallel: 12
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: project, path: work }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+      - name: System libraries for the headless browser
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg libnss3 libdbus-1-3 libatk1.0-0t64 libasound2t64 libxrandr2 libxkbcommon-x11-0 \
+            libxfixes3 libxcomposite1 libxdamage1 libgbm-dev libcups2t64 libatk-bridge2.0-0t64 libpango-1.0-0 libcairo2
+      - name: Install
+        working-directory: engine
+        run: npm ci
+      - name: Render frames ${{ matrix.start }}-${{ matrix.end }} of ${{ matrix.video }}
+        working-directory: engine
+        run: |
+          cp ../work/${{ matrix.video }}/{story,timing,flags}.json src/
+          mkdir -p out
+          # concurrency 1 + software GL = lowest memory; no GPU needed
+          npx remotion render src/index.jsx Story out/chunk.mp4 \
+            --frames=${{ matrix.start }}-${{ matrix.end }} \
+            --gl=swangle --concurrency=1 --image-format=jpeg --jpeg-quality=96 --crf=16 --x264-preset=medium --muted
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chunk-${{ matrix.video }}-${{ matrix.chunk }}
+          path: engine/out/chunk.mp4
+          retention-days: 2
+
+  publish:
+    needs: [plan, render]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: |
+          sudo apt-get update -y && sudo apt-get install -y ffmpeg
+          pip install -r requirements.txt
+      - uses: actions/download-artifact@v4
+        with: { name: project, path: work }
+      - uses: actions/download-artifact@v4
+        with: { pattern: "chunk-*", path: chunks }
+      - name: Join chunks and add the voice
+        run: |
+          for v in $(echo '${{ needs.plan.outputs.videos }}' | python3 -c "import json,sys;print(' '.join(json.load(sys.stdin)))"); do
+            ls chunks/chunk-$v-*/chunk.mp4 | sort -t- -k3 -n | sed "s|^|file '$PWD/|; s|$|'|" > list_$v.txt
+            ffmpeg -y -loglevel error -f concat -safe 0 -i list_$v.txt -c copy work/$v/silent.mp4
+            ffmpeg -y -loglevel error -i work/$v/silent.mp4 -i work/$v/voiceover.wav -map 0:v -map 1:a \
+              -c:v libx264 -crf 17 -preset slow -pix_fmt yuv420p -c:a aac -b:a 256k -ar 48000 -movflags +faststart -shortest work/$v/final.mp4
+            ffprobe -v error -show_entries format=duration,size -of csv=p=0 work/$v/final.mp4
+          done
+      - name: Upload at the publish time
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        working-directory: pipeline
+        run: |
+          DIRS=$(for v in $(echo '${{ needs.plan.outputs.videos }}' | python3 -c "import json,sys;print(' '.join(json.load(sys.stdin)))"); do echo ../work/$v; done)
+          python publish.py $DIRS --at "${{ needs.plan.outputs.publish_at }}" ${{ inputs.dry_run && '--dry' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finished-videos
+          path: |
+            work/*/final.mp4
+            work/*/script.md
+          retention-days: 7
+      - name: Remember topics so they are not repeated
+        if: ${{ !inputs.dry_run }}
+        run: |
+          python pipeline/record.py $(echo '${{ needs.plan.outputs.videos }}' | python3 -c "import json,sys;print(' '.join(json.load(sys.stdin)))")
+          git config user.name "story-bot"; git config user.email "story-bot@users.noreply.github.com"
+          git add state/history.json && git commit -m "history" && git push || true

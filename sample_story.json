@@ -1,0 +1,211 @@
+{
+ "title": "The Fake Gold Mine",
+ "description": "A sample story used for testing the pipeline.",
+ "tags": [
+  "sample"
+ ],
+ "music": "dusty western, tense plucked guitar and low strings, 90 bpm",
+ "cast": [
+  {
+   "role": "prospector",
+   "held": "pickaxe",
+   "skin": "tan",
+   "build": "tall",
+   "palette": "mustard"
+  },
+  {
+   "role": "miner",
+   "held": "lantern",
+   "skin": "brown",
+   "build": "short",
+   "glasses": true,
+   "palette": "teal"
+  },
+  {
+   "role": "cowboy",
+   "held": "lasso",
+   "hair_color": "red",
+   "skin": "pale",
+   "palette": "red"
+  },
+  {
+   "role": "merchant",
+   "held": "moneybag",
+   "build": "wide",
+   "palette": "navy"
+  },
+  {
+   "role": "scientist",
+   "hair": "bun",
+   "hair_color": "blonde",
+   "skin": "dark",
+   "palette": "pink"
+  }
+ ],
+ "facts": [
+  {
+   "claim": "sample",
+   "sources": [
+    "https://example.com/a",
+    "https://example.com/b"
+   ]
+  }
+ ],
+ "shots": [
+  {
+   "location": "cave",
+   "who": [
+    0
+   ],
+   "speaker": "narrator",
+   "emotion": [
+    "smug"
+   ],
+   "object": "gold",
+   "label": "FAKE GOLD",
+   "label_word": 2,
+   "text": "A man sold a worthless mine by loading it with gold dust."
+  },
+  {
+   "location": "cave",
+   "who": [
+    0,
+    3
+   ],
+   "speaker": 0,
+   "emotion": [
+    "happy",
+    "worried"
+   ],
+   "object": "",
+   "label": "",
+   "label_word": 0,
+   "text": "Gentlemen, <short pause> this mine is full of gold!"
+  },
+  {
+   "location": "cave",
+   "who": [
+    1,
+    2
+   ],
+   "speaker": 1,
+   "emotion": [
+    "scared",
+    "smug"
+   ],
+   "object": "",
+   "label": "",
+   "label_word": 0,
+   "text": "Wait, that rock is glittering!"
+  },
+  {
+   "location": "cave",
+   "who": [
+    0
+   ],
+   "speaker": "narrator",
+   "emotion": [
+    "smug"
+   ],
+   "object": "dynamite",
+   "label": "THE TRICK",
+   "label_word": 1,
+   "text": "He fired a shotgun full of gold dust into the walls."
+  },
+  {
+   "location": "cave",
+   "who": [
+    1,
+    4
+   ],
+   "speaker": "narrator",
+   "emotion": [
+    "disgusted",
+    "interested"
+   ],
+   "object": "",
+   "label": "",
+   "label_word": 0,
+   "text": "Nobody noticed that the shiny flecks sat on the surface only."
+  },
+  {
+   "location": "cave",
+   "who": [
+    2
+   ],
+   "speaker": 2,
+   "emotion": [
+    "angry"
+   ],
+   "object": "pickaxe",
+   "label": "",
+   "label_word": 0,
+   "text": "There is nothing deeper than the dust! <sigh>"
+  },
+  {
+   "location": "harbor",
+   "who": [
+    3
+   ],
+   "speaker": "narrator",
+   "emotion": [
+    "sad"
+   ],
+   "object": "coin",
+   "label": "BANKRUPT",
+   "label_word": 1,
+   "text": "By then the buyers had paid and the seller had left town."
+  },
+  {
+   "location": "harbor",
+   "who": [
+    0,
+    4
+   ],
+   "speaker": "narrator",
+   "emotion": [
+    "bored",
+    "worried"
+   ],
+   "object": "",
+   "label": "",
+   "label_word": 0,
+   "text": "Sometimes the shiniest deal is the emptiest one."
+  }
+ ],
+ "props": [
+  "gold",
+  "lantern",
+  "pickaxe",
+  "chest",
+  "coin"
+ ],
+ "details": [
+  {
+   "name": "poster",
+   "text": "WANTED"
+  },
+  {
+   "name": "teacup"
+  },
+  {
+   "name": "candle"
+  },
+  {
+   "name": "mouse"
+  },
+  {
+   "name": "cobweb"
+  },
+  {
+   "name": "coins"
+  },
+  {
+   "name": "bird"
+  },
+  {
+   "name": "note",
+   "text": "CLOSED"
+  }
+ ]
+}

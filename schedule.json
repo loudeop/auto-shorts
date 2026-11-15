@@ -1,0 +1,8 @@
+{
+  "publish_time_ist": "04:30",
+  "days": {
+    "mon": ["short"], "tue": ["short"], "wed": ["short"], "thu": ["short"],
+    "fri": ["long", "short"],
+    "sat": ["short"], "sun": ["short"]
+  }
+}
