@@ -1,33 +1,46 @@
 """Free-tier LLM chain: Google AI Studio -> OpenRouter -> NVIDIA Build -> Cloudflare Workers AI.
 Model names are read from env so you can change them when free models rotate."""
-import json, os, re, requests
+import json, os, re, time, requests
 
 T = 180
 
 
-# tried in order until one works; set GEMINI_MODEL to force a single model
+class QuotaError(RuntimeError):
+    """Every request was refused because the free quota is used up (retrying only wastes more of it)."""
+
+
+# tried in order until one works; set GEMINI_MODEL to force a single model, GROUNDING=0 to skip Google Search grounding
 GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
+GEMINI_TIMEOUT = 120
 
 
 def _gemini(prompt):
     key = os.environ["GEMINI_API_KEY"]
     models = [os.environ["GEMINI_MODEL"]] if os.environ.get("GEMINI_MODEL") else GEMINI_MODELS
     base = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"temperature": 0.8}}
-    last = None
+    bodies = [base] if os.environ.get("GROUNDING") == "0" else [{**base, "tools": [{"google_search": {}}]}, base]
+    outcomes = []                                    # one entry per request: HTTP status or the exception name
     for model in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-        # grounding with Google Search gives it real sources; fall back to no tools if refused
-        for body in ({**base, "tools": [{"google_search": {}}]}, base):
-            r = requests.post(url, params={"key": key}, json=body, timeout=T)
-            if r.ok:
-                print(f"[llm] gemini model {model}")
-                parts = r.json()["candidates"][0]["content"]["parts"]
-                return "".join(p.get("text", "") for p in parts)
-            last = r
-            print(f"[llm] {model}: HTTP {r.status_code} {r.text[:500]}")
-            if r.status_code == 404:  # unknown model -> next model (a 429 retries without grounding first)
+        gone = False
+        for body in bodies:                          # grounded first, then plain
+            for attempt in range(2):
+                try:
+                    r = requests.post(url, params={"key": key}, json=body, timeout=GEMINI_TIMEOUT)
+                except requests.RequestException as e:   # timeout / connection problem: skip this request, never the whole provider
+                    print(f"[llm] {model}: {type(e).__name__}"); outcomes.append(type(e).__name__); break
+                if r.ok:
+                    print(f"[llm] gemini model {model}")
+                    return "".join(p.get("text", "") for p in r.json()["candidates"][0]["content"]["parts"])
+                print(f"[llm] {model}: HTTP {r.status_code} {r.text[:300]}"); outcomes.append(r.status_code)
+                if r.status_code in (500, 502, 503, 504) and attempt == 0:
+                    time.sleep(8); continue          # overloaded: one more try
+                if r.status_code == 404: gone = True
                 break
-    last.raise_for_status()
+            if gone: break                           # unknown model -> next model
+    if outcomes and all(o == 429 for o in outcomes):
+        raise QuotaError("Gemini free quota is used up (HTTP 429 on every model).")
+    raise RuntimeError("Gemini failed: " + ", ".join(str(o) for o in outcomes[-6:]))
 
 
 def _openai_style(url, key, model, prompt, extra_headers=None):
@@ -67,7 +80,7 @@ def extract_json(text):
 
 
 def generate_json(prompt, log=print):
-    errors = []
+    errors, quota = [], []
     for env, name, fn in PROVIDERS:
         if not os.environ.get(env):
             continue
@@ -75,7 +88,12 @@ def generate_json(prompt, log=print):
             out = extract_json(fn(prompt))
             log(f"[llm] {name} ok")
             return out
+        except QuotaError as e:
+            quota.append(name); errors.append(f"{name}: {e}"); log(f"[llm] {name} quota: {e}")
         except Exception as e:  # try the next provider
-            errors.append(f"{name}: {e}")
-            log(f"[llm] {name} failed: {e}")
-    raise RuntimeError("No LLM provider worked. " + " | ".join(errors) if errors else "No LLM API key is set.")
+            errors.append(f"{name}: {e}"); log(f"[llm] {name} failed: {e}")
+    if not errors:
+        raise RuntimeError("No LLM API key is set.")
+    if len(quota) == len(errors):
+        raise QuotaError("All providers are out of free quota. " + " | ".join(errors))
+    raise RuntimeError("No LLM provider worked. " + " | ".join(errors))

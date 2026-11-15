@@ -105,6 +105,9 @@ def build(fmt, out, sample=False):
         for attempt in range(1, 5):
             try:
                 d = llm.generate_json(prompt); words = validate(d, fmt); break
+            except llm.QuotaError:
+                print("[story] stopping: the free quota is used up. Wait for the daily reset (about midnight Pacific time), add billing, or add an OPENROUTER_API_KEY secret as a backup.")
+                raise
             except Exception as e:
                 print(f"[story] attempt {attempt} rejected: {e}")
                 if attempt == 4: raise
