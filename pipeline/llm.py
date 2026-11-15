@@ -52,7 +52,7 @@ def _openai_style(url, key, model, prompt, extra_headers=None):
 
 def _openrouter(prompt):
     return _openai_style("https://openrouter.ai/api/v1/chat/completions", os.environ["OPENROUTER_API_KEY"],
-                         os.environ.get("OPENROUTER_MODEL", "openrouter/free"), prompt)
+                         os.environ.get("OPENROUTER_MODEL", "openrouter/free"), prompt, {"X-Title": "auto-shorts"})
 
 
 def _nvidia(prompt):
@@ -79,9 +79,15 @@ def extract_json(text):
     return json.loads(text[a:b + 1])
 
 
-def generate_json(prompt, log=print):
+def generate_json(prompt, log=print, prefer=None, only=None):
+    """prefer: provider names to try first; only: restrict to these providers (e.g. keep Gemini's quota for scripts)."""
+    order = list(PROVIDERS)
+    if prefer:
+        order.sort(key=lambda p: prefer.index(p[1]) if p[1] in prefer else len(prefer))
+    if only:
+        order = [p for p in order if p[1] in only]
     errors, quota = [], []
-    for env, name, fn in PROVIDERS:
+    for env, name, fn in order:
         if not os.environ.get(env):
             continue
         try:

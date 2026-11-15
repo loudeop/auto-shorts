@@ -32,22 +32,34 @@ export const LIGHTS = {
   joint: {sun: '#ffe0b0', si: 2.3, sky: '#c4c8dc', gnd: '#5a5662', hi: 1.3, fog: '#4a4a58', near: 30, far: 80, sunOff: [-7, 12, 9], shadow: 12, top: '#222', hor: '#333', pt: {c: '#ffb066', i: 16, p: [-3.2, 4.6, -1.5], d: 12}},
   weather: {sun: '#eef2ff', si: 1.4, sky: '#eef3f6', gnd: '#8f7b66', hi: 1.1, fog: '#e3e7e1', near: 30, far: 90, sunOff: [-6, 9, 7], shadow: 10, top: '#56606e', hor: '#9aa4b0', pt: {c: '#ffd58a', i: 5, p: [0, 3.8, 0], d: 14}},
   morning: {sun: '#ffbf7a', si: 2.5, sky: '#ffe0bd', gnd: '#c08a5a', hi: 1.0, fog: '#f6d9b8', near: 160, far: 650, sunOff: [-60, 40, 50], shadow: 80, top: '#6fa6dd', hor: '#ffd3a1', pt: null},
-  cave: {sun: '#ffd9a0', si: 1.4, sky: '#b9a890', gnd: '#4a3a2a', hi: 1.15, fog: '#3a2c20', near: 18, far: 60, sunOff: [-6, 10, 8], shadow: 12, top: '#1a1410', hor: '#2a2018', pt: {c: '#ffb066', i: 14, p: [-2, 4, -1], d: 14}},
+  cave: {sun: '#ffe2b8', si: 2.4, sky: '#d2bf9f', gnd: '#7a6248', hi: 1.7, fog: '#54402e', near: 28, far: 140, sunOff: [-6, 10, 8], shadow: 12, top: '#2a2018', hor: '#4a3a2c', pt: {c: '#ffc27a', i: 12, p: [-2, 4, -1], d: 20}},
   desert: {sun: '#fff1c4', si: 3.0, sky: '#bfe0ff', gnd: '#d8b070', hi: 1.1, fog: '#f1d9a8', near: 90, far: 420, sunOff: [-30, 50, 30], shadow: 30, top: '#3d8fe0', hor: '#f7e3bd', pt: null},
   forest: {sun: '#fff0c0', si: 2.1, sky: '#cfe8ff', gnd: '#4a7a3a', hi: 1.1, fog: '#cfe3c0', near: 30, far: 150, sunOff: [-20, 40, 20], shadow: 30, top: '#5fa0d8', hor: '#e3efd0', pt: null},
   harbor: {sun: '#fff0cf', si: 2.6, sky: '#a9d8ff', gnd: '#8a7a6a', hi: 1.15, fog: '#cfe3ee', near: 80, far: 420, sunOff: [-40, 70, 50], shadow: 40, top: '#4a95d8', hor: '#d9eef7', pt: null},
-  castle: {sun: '#ffe0b0', si: 1.3, sky: '#aab0c0', gnd: '#6a6258', hi: 0.95, fog: '#3a3630', near: 20, far: 75, sunOff: [-6, 9, 7], shadow: 10, top: '#222', hor: '#333', pt: {c: '#ffb066', i: 12, p: [0, 5, -1], d: 16}},
+  castle: {sun: '#ffe0b0', si: 2.0, sky: '#bcc2d2', gnd: '#7a7268', hi: 1.5, fog: '#4d4840', near: 24, far: 150, sunOff: [-6, 9, 7], shadow: 10, top: '#2c2c34', hor: '#46464e', pt: {c: '#ffc27a', i: 11, p: [0, 5, -1], d: 20}},
 };
 
 // calm palette: every light preset is made a little darker, less saturated and gentler (flags.calm 0 turns it off, 1 = full)
 const CALM = flags.calm === undefined ? 1 : flags.calm;
 const soften = (hex, ds, dl) => new THREE.Color(hex).offsetHSL(0, ds, dl).getStyle();
+const lum = (hex) => { const o = {}; new THREE.Color(hex).getHSL(o); return o.l; };
 if (CALM) {
   for (const L of Object.values(LIGHTS)) {
-    for (const k of ['sky', 'gnd', 'fog', 'top', 'hor']) if (L[k]) L[k] = soften(L[k], -0.12 * CALM, -0.07 * CALM);
-    L.si *= 1 - 0.12 * CALM; L.hi *= 1 - 0.08 * CALM;
-    if (L.pt) L.pt = {...L.pt, i: L.pt.i * (1 - 0.1 * CALM)};
+    const dark = lum(L.fog) < 0.3;                       // already-dark places keep their light; they are only desaturated
+    for (const k of ['sky', 'gnd', 'fog', 'top', 'hor']) if (L[k]) L[k] = soften(L[k], -0.12 * CALM, dark ? 0 : -0.05 * CALM);
+    if (!dark) { L.si *= 1 - 0.1 * CALM; L.hi *= 1 - 0.06 * CALM; }
   }
+}
+const SUN_ON = ['day', 'morning', 'yard', 'desert', 'forest', 'harbor'];
+const HEX = /^#[0-9a-fA-F]{6}$/;
+// each place may carry its own light colours from the set designer (story.design[loc].light)
+function designLight(loc, baseKey) {
+  const D = (story.design && story.design[loc] && story.design[loc].light) || {};
+  const L = {...LIGHTS[baseKey], sunOn: SUN_ON.includes(baseKey)};
+  for (const k of ['sun', 'sky', 'gnd', 'fog', 'top', 'hor']) if (HEX.test(D[k] || '')) L[k] = soften(D[k], -0.06 * CALM, -0.03 * CALM);
+  const fk = typeof D.fogK === 'number' ? Math.min(1.6, Math.max(0.5, D.fogK)) : 1;
+  L.near *= fk; L.far *= fk;
+  return L;
 }
 
 const v = (a) => new THREE.Vector3(...a);
@@ -91,7 +103,10 @@ story.shots.forEach((sh, i) => {
   const loc = KIND[sh.location] ? sh.location : 'office';
   SHOT[sh.key] = {...sh, location: loc};
   const street = loc.startsWith('street');
-  const light = street && LIGHTS[sh.mood] ? sh.mood : KIND[loc].light;
+  let light = street && LIGHTS[sh.mood] ? sh.mood : KIND[loc].light;
+  if (!(street && LIGHTS[sh.mood]) && story.design && story.design[loc] && story.design[loc].light) {
+    const dk = 'd_' + loc; if (!LIGHTS[dk]) LIGHTS[dk] = designLight(loc, KIND[loc].light); light = dk;
+  }
   let move = MOVES[i % MOVES.length];
   if (MOVES.includes(sh.cam)) move = sh.cam;
   if (sh.object) move = 'reveal';
@@ -125,8 +140,8 @@ const poseOf = (k, t) => {
   return {pos: C.p.getPointAt(u), look: C.l.getPointAt(u)};
 };
 const ss = (x) => { const c = Math.min(1, Math.max(0, x)); return c * c * (3 - 2 * c); };
-const GLIDE = 0.4;   // seconds each side of a cut inside the same location: the camera glides between framings
-const WHIP = 0.22;   // seconds each side of a location change: whip-pan + motion blur
+const GLIDE = 0.5;   // seconds each side of a cut inside the same location: the camera glides between framings
+const WHIP = 0.3;   // seconds each side of a location change: whip-pan + motion blur
 const sameLoc = (j) => SHOT[keys[j]].location === SHOT[keys[j - 1]].location;
 
 export function cameraAt(t) {
@@ -143,7 +158,7 @@ export function cameraAt(t) {
         base = {pos: A.pos.clone().lerp(B.pos, w), look: A.look.clone().lerp(B.look, w)};
       }
     } else if (Math.abs(t - c) < WHIP) {
-      whip = 1 - Math.abs(t - c) / WHIP; dir = t < c ? 1 : -1;
+      whip = ss(1 - Math.abs(t - c) / WHIP); dir = t < c ? 1 : -1;
     }
   }
   if (whip > 0) {   // swing the view sideways: out to the right before the cut, in from the left after it

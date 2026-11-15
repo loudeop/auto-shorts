@@ -1,7 +1,7 @@
 """Idea -> script -> voices/music/sfx -> timing for ONE video. Output folder holds everything the renderer needs."""
 import argparse, json, os, re, sys
 from common import ROOT, history
-import llm, audio, catalog
+import llm, audio, catalog, design
 
 LOCS = {"street_day": "city street in daylight", "street_night": "city street at night", "office": "office / classroom / study",
         "yard": "back yard / construction yard", "workshop": "factory / workshop", "lab": "laboratory / weather room",
@@ -113,6 +113,9 @@ def build(fmt, out, sample=False):
                 if attempt == 4: raise
     raw = [s["text"] for s in d["shots"]]
     d = tidy(d)
+    # set design: each place gets its own palette, light, floor, scenery and particles (OpenRouter if a key is set, else seeded random)
+    d["design"] = design.design_places(d["title"], d["description"], sorted({s["location"] for s in d["shots"]}),
+                                       [s["label"] for s in d["shots"] if s["label"]], use_llm=True)
     # voices (text with allowed tags) and captions (clean text)
     vshots = [dict(key=s["key"], text=r, speaker=s["speaker"], emotion=s["emotion"][s["who"].index(s["speaker"])] if s["speaker"] != "narrator" else s["emotion"][0],
                    location=s["location"]) for s, r in zip(d["shots"], raw)]
@@ -122,7 +125,7 @@ def build(fmt, out, sample=False):
                for p, s in zip(placed, d["shots"])]
     timing = dict(fps=30, duration=duration, format=fmt, width=W, height=H, shots=shots_t, env=env)
     json.dump(timing, open(os.path.join(out, "timing.json"), "w"))
-    story = dict(title=d["title"], format=fmt, cast=d["cast"], props=d["props"], details=d["details"],
+    story = dict(title=d["title"], format=fmt, cast=d["cast"], props=d["props"], details=d["details"], design=d["design"],
                  shots=[{k: s[k] for k in ("key", "location", "who", "speaker", "emotion", "object", "label", "label_word", "mood", "cam") if k in s} for s in d["shots"]])
     json.dump(story, open(os.path.join(out, "story.json"), "w"), indent=1)
     json.dump(dict(title=d["title"][:95], description=d["description"], tags=d.get("tags", [])[:15], facts=d["facts"], format=fmt),

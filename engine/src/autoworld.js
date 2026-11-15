@@ -9,6 +9,7 @@ import {cave, desert, forest, harbor, castle} from './sets2.js';
 import {makeObject} from './objects.js';
 import {makeDetail} from './details.js';
 import {glow, dotTexture} from './glow.js';
+import {PIECES, PIECE_SLOTS, floorPattern} from './setpieces.js';
 import flags from './flags.json';
 import {objPos} from './camera.js';
 import story from './story.json';
@@ -18,6 +19,9 @@ const ENV = timing.env || [];
 const NEW_SETS = {cave, desert, forest, harbor, castle};
 const OBJECTS_OK = (n) => typeof n === 'string' && n.length > 0;
 const START = Object.fromEntries(timing.shots.map((x) => [x.key, x.start]));
+const PREV = Object.fromEntries(timing.shots.map((x, i) => [x.key, i ? timing.shots[i - 1].key : null]));
+const DESIGN = story.design || {};
+const palOf = (D) => { const p = (D && D.palette) || {}; return {trim: p.trim || '#8d8880', accent: p.accent || '#c8372d', wood: p.wood || '#8a5a2b', sky: p.sky || '#bfe3f5'}; };
 
 // props that suit each place, mixed with the ones the story asks for ("props" in story.json)
 const DEFAULT_PROPS = {
@@ -33,14 +37,23 @@ const SLOTS = [[-2.7, -0.6, 1.4], [2.9, -0.4, 1.3], [-4.2, -2.2, 1.9], [4.4, -2.
 const CALM = flags.calm === undefined ? 1 : flags.calm;
 const DEEP = new THREE.Color('#1f3440');
 const calmCache = new Map();
-function calmify(root) {
-  if (!CALM) return;
+function calmify(root, pal) {
+  const tint = pal && pal.tint ? new THREE.Color(pal.tint) : null;
+  const tk = tint ? pal.tint : '';
+  const ts = tint ? (pal.tint_strength === undefined ? 0.22 : Math.min(0.4, Math.max(0, pal.tint_strength))) : 0;
+  if (!CALM && !tint) return;
   root.traverse((o) => {
     if (!o.isMesh || !o.material || o.userData.keep) return;
     const m = o.material;
     if (Array.isArray(m) || !m.color || m.isMeshBasicMaterial) return;      // basic materials = signs, lit windows, outlines: left bright
-    let c = calmCache.get(m);
-    if (!c) { c = m.clone(); c.color.offsetHSL(0, -0.1 * CALM, -0.09 * CALM); c.color.lerp(DEEP, 0.1 * CALM); calmCache.set(m, c); }
+    let per = calmCache.get(m); if (!per) { per = new Map(); calmCache.set(m, per); }
+    let c = per.get(tk);
+    if (!c) {
+      c = m.clone();
+      if (CALM) { c.color.offsetHSL(0, -0.1 * CALM, -0.05 * CALM); c.color.lerp(DEEP, 0.07 * CALM); }
+      if (tint) c.color.lerp(tint, ts);                                       // this place's own colour
+      per.set(tk, c);
+    }
     o.material = c;
   });
 }
@@ -49,15 +62,15 @@ const WALLZ = {office: -5.28, lab: -5.28, workshop: -5.9, cave: -7.4, castle: -6
 const WALL_XS = [-4.2, -1.2, 2.3, 4.4, -2.9, 0.7, 3.6, -5.2];
 
 // drifting particles that suit the place: dust, fireflies, blowing sand or rising embers
-function particles(loc) {
+function particles(loc, over) {
   const K = KIND[loc], ox = LOC[loc]; const r = rng(loc.length * 13 + 5);
-  const kind = (loc === 'forest' || loc === 'street_night') ? 'fly' : loc === 'desert' ? 'sand' : (loc === 'workshop' || loc === 'cave') ? 'ember' : 'dust';
+  const kind = over || ((loc === 'forest' || loc === 'street_night') ? 'fly' : loc === 'desert' ? 'sand' : (loc === 'workshop' || loc === 'cave') ? 'ember' : 'dust');
   const N = kind === 'sand' ? 150 : 100;
   const base = new Float32Array(N * 3), pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) { base[i * 3] = ox + (r() - 0.5) * 12; base[i * 3 + 1] = 0.3 + r() * 4.2; base[i * 3 + 2] = K.hz - 4 + r() * 8; }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const color = {dust: '#fff3d0', fly: '#e8ff7a', sand: '#e8c890', ember: '#ff9a3c'}[kind];
-  const mat = new THREE.PointsMaterial({color, size: kind === 'fly' ? 0.16 : 0.09, map: dotTexture(), transparent: true, opacity: kind === 'dust' ? 0.6 : 0.9, depthWrite: false});
+  const color = {dust: '#fff3d0', fly: '#e8ff7a', sand: '#e8c890', ember: '#ff9a3c', snow: '#ffffff', petal: '#ffb6c8'}[kind];
+  const mat = new THREE.PointsMaterial({color, size: kind === 'fly' ? 0.16 : (kind === 'snow' || kind === 'petal') ? 0.12 : 0.09, map: dotTexture(), transparent: true, opacity: kind === 'dust' ? 0.6 : 0.9, depthWrite: false});
   const pts = new THREE.Points(geo, mat); pts.frustumCulled = false;
   const update = (t) => {
     for (let i = 0; i < N; i++) {
@@ -65,6 +78,7 @@ function particles(loc) {
       if (kind === 'dust') { x += Math.sin(t * 0.3 + ph) * 0.5; y += Math.sin(t * 0.4 + ph * 1.3) * 0.3; z += Math.cos(t * 0.25 + ph) * 0.4; }
       else if (kind === 'fly') { x += Math.sin(t * 0.6 + ph) * 1.2; y = 0.6 + (y % 2.2) + Math.sin(t * 0.8 + ph) * 0.4; z += Math.cos(t * 0.5 + ph) * 1.0; }
       else if (kind === 'sand') { x = ox - 8 + ((x - ox + 8 + t * 3.5 + ph) % 16); y = 0.2 + (y % 1.8) + Math.sin(t * 2 + ph) * 0.15; }
+      else if (kind === 'snow' || kind === 'petal') { const sp = kind === 'snow' ? 0.55 : 0.3; y = 4.8 - ((4.8 - y + t * sp + ph) % 4.8); x += Math.sin(t * 0.6 + ph) * (kind === 'snow' ? 0.4 : 0.9); z += Math.cos(t * 0.4 + ph) * 0.4; }
       else { y = 0.3 + ((y + t * 0.5 + ph) % 5); x += Math.sin(t * 1.2 + ph) * 0.3; }
       pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
     }
@@ -85,8 +99,10 @@ export function buildWorld() {
   const shots = Object.values(SHOTS);
   const used = [...new Set(shots.map((s) => s.location))];
 
+  const locGroups = {};
   for (const loc of used) {
     const ox = LOC[loc];
+    const n0 = W.children.length;
     if (NEW_SETS[loc]) {
       W.add(NEW_SETS[loc](ox));
     } else if (loc === 'street_night') {
@@ -123,9 +139,13 @@ export function buildWorld() {
       W.add(box(6.2, 3.6, 0.12, '#f4f4ee', {x: ox - 1.0, y: 2.9, z: -5.35, thick: 0.02}));
       dressWeather(W, ox, chars);
     }
+    // everything this location added becomes one group, so the place can get its own palette
+    const lg = new THREE.Group();
+    for (const ch of W.children.slice(n0)) lg.add(ch);
+    W.add(lg); locGroups[loc] = lg;
   }
 
-  calmify(W);   // only the set so far: dressing, details, props and cast stay bright
+  for (const loc of used) calmify(locGroups[loc], (DESIGN[loc] || {}).palette);   // only the sets: dressing, details, props and cast stay bright
 
   // set dressing: big story props around the action, gently bobbing, and ambient particles
   const bobbers = [];
@@ -140,10 +160,28 @@ export function buildWorld() {
       o.position.set(ox + dx, K.hy, K.hz + dz); o.scale.setScalar(sc * (0.9 + r() * 0.3));
       const ry = (r() - 0.5) * 1.4; o.rotation.y = ry;
       const gname = names[(i + loc.length) % names.length];
-      if (GLOWY[gname]) { const gl = glow(GLOWY[gname], 1.5, 0.28); gl.position.y = 0.45; o.add(gl); }
+      if (GLOWY[gname]) { const gl = glow(GLOWY[gname], 1.2, 0.15); gl.position.y = 0.45; o.add(gl); }
       W.add(o); bobbers.push({o, y: K.hy, ry, ph: r() * 6});
     });
-    const p = particles(loc); W.add(p.pts); updaters.push(p.update);
+    const over = (DESIGN[loc] || {}).particles;
+    if (over !== 'none') { const p = particles(loc, over); W.add(p.pts); updaters.push(p.update); }
+  }
+
+  // per-place design: floor style and scenery pieces chosen by the set designer, so the same place looks different in every story
+  for (const loc of used) {
+    const D = DESIGN[loc]; if (!D) continue;
+    const K = KIND[loc], ox = LOC[loc], pal = palOf(D);
+    if (D.floor && D.floor !== 'none' && !loc.startsWith('street')) W.add(floorPattern(D.floor, ox, K.hz, K.hy, pal));
+    (D.pieces || []).slice(0, 6).forEach((pc) => {
+      const mk = PIECES[pc.name]; if (!mk) return;
+      const sl = PIECE_SLOTS[pc.slot] || PIECE_SLOTS.back_left;
+      const R = mk(pal, pc.text);
+      let z = K.hz + sl[1];
+      if (WALLZ[loc] !== undefined) z = Math.max(z, WALLZ[loc] + 0.9);
+      if (loc.startsWith('street')) z = Math.min(Math.max(z, 3.8), 7.0);
+      R.g.position.set(ox + sl[0], K.hy, z); R.g.scale.setScalar(sl[2] * (pc.scale || 1)); R.g.rotation.y = sl[0] < 0 ? 0.25 : (sl[0] > 0 ? -0.25 : 0);
+      W.add(R.g); if (R.update) updaters.push((t) => R.update(t));
+    });
   }
 
   // tiny story details (posters with story words, steaming cups, candles, mice, birds, moths...)
@@ -175,6 +213,7 @@ export function buildWorld() {
         glasses: !!c.glasses, seed: 200 + ci * 7, role: c.role || '', costume: c.costume || [], held: c.held || '',
         hair: c.hair || '', hairColor: c.hair_color || '', skin: c.skin || '', build: c.build || '',
       });
+      h.userData.baseScale = h.scale.clone();
       h.visible = false; W.add(h); chars.push(h); return h;
     });
   }
@@ -186,7 +225,7 @@ export function buildWorld() {
     const K = KIND[sh.location];
     const s = sign(String(sh.label).toUpperCase().slice(0, 26), 2.1, 0.8, {bg: '#f2e6cc', w: 640, h: 240, font: 'bold 110px Arial, sans-serif'});
     s.position.set(LOC[sh.location], K.hy + 2.45, K.hz - 0.5);
-    const sg = glow('#fff1c4', 3.4, 0.22); sg.position.z = -0.05; s.add(sg);
+    const sg = glow('#fff1c4', 3.0, 0.12); sg.position.z = -0.05; s.add(sg);
     s.visible = false; W.add(s);
     signs[sh.key] = {g: s, word: Math.max(0, sh.label_word | 0)};
   }
@@ -197,7 +236,7 @@ export function buildWorld() {
     if (!sh.object) continue;
     const o = makeObject(sh.object); const p = objPos(sh.location);
     o.position.set(p[0], p[1], p[2]); o.scale.setScalar(1.5); o.rotation.y = -0.35;
-    const og = glow('#ffd28a', 1.5, 0.45); og.position.y = 0.5; o.add(og); o.userData.glow = og;
+    const og = glow('#ffd28a', 1.2, 0.22); og.position.y = 0.5; o.add(og); o.userData.glow = og;
     o.visible = false; W.add(o); objs[sh.key] = o;
   }
 
@@ -205,25 +244,40 @@ export function buildWorld() {
     for (const c of chars) c.userData.update(t, cam.position);
     for (const u of updaters) u(t, cam);
     const cur = SHOTS[shotKey];
+    const age = cur ? Math.max(0, t - (START[shotKey] || 0)) : 99;
+    const prev = cur ? SHOTS[PREV[shotKey]] : null;                                  // previous shot: heroes hand over smoothly
+    const slotX = (who, idx) => (who.length === 1 ? 0 : (idx === 0 ? -0.9 : 0.9));
+    const poseOf = (sh, ci, a, t0) => {
+      const w = (sh.who || [0]).slice(0, 2); const i = w.indexOf(ci);
+      const emo = Array.isArray(sh.emotion) ? (sh.emotion[i] || sh.emotion[0]) : sh.emotion;
+      return {emo: emo || 'neutral', talk: sh.speaker === ci ? (ENV[Math.floor(t * 30)] || 0) : 0, age: a};
+    };
     for (const loc of used) {
       const K = KIND[loc];
       const who = cur && cur.location === loc ? (cur.who || [0]).slice(0, 2) : [];
+      const pWho = prev && cur && prev.location === loc && cur.location === loc ? (prev.who || [0]).slice(0, 2) : [];
       heroes[loc].forEach((h, ci) => {
-        const idx = who.indexOf(ci);
-        h.visible = idx >= 0;
+        const idx = who.indexOf(ci), pi = pWho.indexOf(ci);
+        let w = 0, x = 0, ref = cur, a = age;
         if (idx >= 0) {
-          h.position.set(LOC[loc] + (who.length === 1 ? 0 : (idx === 0 ? -0.9 : 0.9)), K.hy, K.hz);
-          const emo = Array.isArray(cur.emotion) ? (cur.emotion[idx] || cur.emotion[0]) : cur.emotion;
-          h.userData.pose.emo = emo || 'neutral';
-          h.userData.pose.talk = cur.speaker === ci ? (ENV[Math.floor(t * 30)] || 0) : 0;
-          h.userData.pose.age = Math.max(0, t - (START[shotKey] || 0));
+          const k = ease(age, 0, 0.35);
+          x = pi >= 0 ? slotX(pWho, pi) + (slotX(who, idx) - slotX(pWho, pi)) * k : slotX(who, idx);   // glide to the new spot
+          w = pi >= 0 ? 1 : k;                                                                          // newcomers grow in
+        } else if (pi >= 0 && age < 0.25) {                                                              // leavers shrink out
+          w = 1 - ease(age, 0, 0.25); x = slotX(pWho, pi); ref = prev; a = t - (START[PREV[shotKey]] || 0);
         }
+        h.visible = w > 0.01;
+        if (!h.visible) return;
+        h.position.set(LOC[loc] + x, K.hy, K.hz);
+        const s = Math.max(0.001, w * (1 + 0.1 * Math.sin(Math.min(1, w) * Math.PI)));            // small pop on arrival
+        const bs = h.userData.baseScale; h.scale.set(bs.x * s, bs.y * s, bs.z * s);
+        Object.assign(h.userData.pose, poseOf(ref, ci, a));
       });
     }
     for (const b of bobbers) { b.o.position.y = b.y + Math.abs(Math.sin(t * 1.4 + b.ph)) * 0.03; b.o.rotation.y = b.ry + Math.sin(t * 0.5 + b.ph) * 0.15; }
     for (const [key, o] of Object.entries(objs)) {
       o.visible = key === shotKey;
-      if (o.visible) { o.userData.glow.material.opacity = 0.38 + 0.14 * Math.sin(t * 3); const sh = SHOTS[key]; o.scale.setScalar(1.5 * Math.max(0.001, ease(t, timing.shots.find((x) => x.key === key).start, timing.shots.find((x) => x.key === key).start + 0.3))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12; }
+      if (o.visible) { o.userData.glow.material.opacity = 0.2 + 0.06 * Math.sin(t * 3); const sh = SHOTS[key]; o.scale.setScalar(1.5 * Math.max(0.001, ease(t, timing.shots.find((x) => x.key === key).start, timing.shots.find((x) => x.key === key).start + 0.3))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12; }
     }
     for (const [key, o] of Object.entries(signs)) {
       const on = key === shotKey;

@@ -26,17 +26,17 @@ const Whip = {
 };
 
 const Vignette = {
-  uniforms: {tDiffuse: {value: null}, amount: {value: 0.32 + 0.1 * CALM}},
+  uniforms: {tDiffuse: {value: null}, amount: {value: 0.32 + 0.04 * CALM}},
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: 'uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - 0.5; float v = 1.0 - amount * smoothstep(0.25, 0.75, length(d * vec2(1.0, 0.8))); gl_FragColor = vec4(c.rgb * v, c.a); }',
 };
 
 const Grade = {
-  uniforms: {tDiffuse: {value: null}, sat: {value: 1.2 - 0.26 * CALM}, con: {value: 1.08}, warm: {value: 0.035}, dark: {value: 1.0 - 0.09 * CALM}},
+  uniforms: {tDiffuse: {value: null}, sat: {value: 1.2 - 0.26 * CALM}, con: {value: 1.08}, warm: {value: 0.035}, dark: {value: 1.0 - 0.05 * CALM}, lift: {value: 0.22 * CALM}},
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float warm; uniform float dark; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float warm; uniform float dark; uniform float lift; varying vec2 vUv;
   void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 col = c.rgb; float l = dot(col, vec3(0.299,0.587,0.114));
-  col = mix(vec3(l), col, sat); col = (col - 0.5) * con + 0.5; col *= dark;
+  col = mix(vec3(l), col, sat); col = (col - 0.5) * con + 0.5; col *= dark; col = col * (1.0 - lift) + lift * vec3(0.11, 0.16, 0.18);
   col += vec3(warm, warm*0.4, -warm) * smoothstep(0.35, 1.0, l); col += vec3(-0.01, 0.0, 0.03) * (1.0 - smoothstep(0.0, 0.45, l));
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a); }`,
 };
@@ -77,7 +77,7 @@ const Scene = ({frame, fps}) => {
     c.addPass(new RenderPass(scene, camera));
     const bokeh = flags.bokeh ? new BokehPass(scene, camera, {focus: 5, aperture: 0.0025, maxblur: 0.006}) : null;
     if (bokeh) c.addPass(bokeh);
-    const bloom = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.38, 0.55, 0.82);
+    const bloom = new UnrealBloomPass(new THREE.Vector2(size.width, size.height), 0.26, 0.5, 0.95);
     c.addPass(bloom);
     const whip = new ShaderPass(Whip);
     c.addPass(whip);
@@ -91,7 +91,7 @@ const Scene = ({frame, fps}) => {
   useFrame(() => {
     const tt = tRef.current;
     const cam = cameraAt(tt);
-    camera.fov = FOV; camera.near = 0.1; camera.far = 900; camera.updateProjectionMatrix();
+    camera.fov = FOV + cam.whip * 9; camera.near = 0.1; camera.far = 900; camera.updateProjectionMatrix();
     camera.position.copy(cam.pos); camera.lookAt(cam.look);
     const L = LIGHTS[cam.plan.light];
     const A = cam.plan.anchor;
@@ -104,11 +104,11 @@ const Scene = ({frame, fps}) => {
     scene.background = null;
     lights.sky.position.copy(cam.pos);
     const su = lights.sky.material.uniforms; su.top.value.set(L.top); su.hor.value.set(L.hor);
-    su.sunDir.value.set(L.sunOff[0], L.sunOff[1], L.sunOff[2]).normalize(); su.sunOn.value = ['day', 'morning', 'yard', 'desert', 'forest', 'harbor'].includes(cam.plan.light) ? 1 : 0;
+    su.sunDir.value.set(L.sunOff[0], L.sunOff[1], L.sunOff[2]).normalize(); su.sunOn.value = (L.sunOn !== undefined ? L.sunOn : ['day', 'morning', 'yard', 'desert', 'forest', 'harbor'].includes(cam.plan.light)) ? 1 : 0;
     if (L.pt) { lights.pt.color.set(L.pt.c); lights.pt.intensity = L.pt.i; lights.pt.distance = L.pt.d; lights.pt.position.set(A[0] + L.pt.p[0], A[1] + L.pt.p[1], A[2] + L.pt.p[2]); } else lights.pt.intensity = 0;
     world.update(tt, camera, cam.key);
     comp.whip.uniforms.amount.value = cam.whip;
-    comp.bloom.strength = 0.38 + cam.whip * 0.9;       // every scene change blooms softly
+    comp.bloom.strength = 0.26 + cam.whip * 0.8;       // every scene change blooms softly
     if (comp.bokeh) comp.bokeh.uniforms.focus.value = cam.pos.distanceTo(cam.look);
   }, 0);
   useFrame(() => { comp.c.render(); }, 1);
