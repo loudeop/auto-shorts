@@ -11,13 +11,23 @@ import {makeDetail} from './details.js';
 import {glow, dotTexture} from './glow.js';
 import {PIECES, PIECE_SLOTS, floorPattern} from './setpieces.js';
 import flags from './flags.json';
-import {objPos} from './camera.js';
+import {objPos, CUTS, END} from './camera.js';
+import {buildProp, PROP_SLOTS} from './propbuilder.js';
+import {motionFor} from './motion.js';
 import story from './story.json';
 import timing from './timing.json';
 
 const ENV = timing.env || [];
 const NEW_SETS = {cave, desert, forest, harbor, castle};
 const OBJECTS_OK = (n) => typeof n === 'string' && n.length > 0;
+const KEYS = timing.shots.map((x) => x.key);
+const TS = Object.fromEntries(timing.shots.map((x) => [x.key, x]));
+const SHOT_A = (i) => CUTS[i];                                   // a shot lasts from its cut to the next cut
+const SHOT_B = (i) => (i + 1 < CUTS.length ? CUTS[i + 1] : END);
+// enter / exit progress for something that belongs to shot i: grows in just after the cut, shrinks out just before the next one
+const winIn = (t, i) => ease(t, SHOT_A(i) - 0.05, SHOT_A(i) + 0.45);
+const winOut = (t, i) => 1 - ease(t, SHOT_B(i) - 0.3, SHOT_B(i) + 0.05);
+const bounce = (x) => { const n = 7.5625, d = 2.75; if (x < 1 / d) return n * x * x; if (x < 2 / d) { x -= 1.5 / d; return n * x * x + 0.75; } if (x < 2.5 / d) { x -= 2.25 / d; return n * x * x + 0.9375; } x -= 2.625 / d; return n * x * x + 0.984375; };
 const START = Object.fromEntries(timing.shots.map((x) => [x.key, x.start]));
 const PREV = Object.fromEntries(timing.shots.map((x, i) => [x.key, i ? timing.shots[i - 1].key : null]));
 const DESIGN = story.design || {};
@@ -204,6 +214,24 @@ export function buildWorld() {
     });
   }
 
+  // basic props made just for one shot: they appear with their shot and leave with it (pop / drop / slide / rise / swing in)
+  const sprops = [];
+  shots.forEach((sh) => {
+    const i = KEYS.indexOf(sh.key); if (i < 0) return;
+    const K = KIND[sh.location], ox = LOC[sh.location];
+    (sh.scene_props || []).slice(0, 3).forEach((spec) => {
+      let slot = PROP_SLOTS[spec.slot] || PROP_SLOTS.left;
+      if (sh.object && (spec.slot === 'right' || spec.slot === 'right_front')) slot = PROP_SLOTS.far_right;   // keep clear of the close-up prop
+      const g = buildProp(spec);
+      let z = K.hz + slot[1]; if (sh.location.startsWith('street')) z = Math.min(z, K.hz + 0.9);
+      const bx = ox + slot[0], by = K.hy, sc = g.scale.x;
+      g.visible = false; W.add(g);
+      const held = Number.isInteger(spec.holder) && (sh.who || [0]).includes(spec.holder);
+      sprops.push({g, i, loc: sh.location, holder: held ? spec.holder : undefined, enter: spec.enter || 'pop', motion: spec.motion || 'none', bx, by, bz: z,
+        sc: held && spec.scale === undefined ? sc * 0.55 : sc, side: slot[0] < 0 ? -1 : 1, ph: i * 1.3});
+    });
+  });
+
   // the story's cast, one copy per location (only the ones named in the current shot are visible)
   const heroes = {};
   for (const loc of used) {
@@ -216,6 +244,13 @@ export function buildWorld() {
       h.userData.baseScale = h.scale.clone();
       h.visible = false; W.add(h); chars.push(h); return h;
     });
+  }
+
+  // props that a character holds go into that character's hand and move with the arm (swing the axe, carry the sack)
+  for (const p of sprops) {
+    if (p.holder === undefined) continue;
+    const h = heroes[p.loc] && heroes[p.loc][p.holder];
+    if (h) { h.userData.armR.add(p.g); p.g.position.set(0.085, -0.45, 0.03); p.hero = h; }
   }
 
   // one in-world label per shot (pops in on the word named by label_word)
@@ -250,7 +285,9 @@ export function buildWorld() {
     const poseOf = (sh, ci, a, t0) => {
       const w = (sh.who || [0]).slice(0, 2); const i = w.indexOf(ci);
       const emo = Array.isArray(sh.emotion) ? (sh.emotion[i] || sh.emotion[0]) : sh.emotion;
-      return {emo: emo || 'neutral', talk: sh.speaker === ci ? (ENV[Math.floor(t * 30)] || 0) : 0, age: a};
+      const T = TS[sh.key];
+      return {emo: emo || 'neutral', talk: sh.speaker === ci ? (ENV[Math.floor(t * 30)] || 0) : 0, age: a,
+        mv: motionFor(sh, ci, (t - T.start) / Math.max(0.1, T.end - T.start))};
     };
     for (const loc of used) {
       const K = KIND[loc];
@@ -275,14 +312,38 @@ export function buildWorld() {
       });
     }
     for (const b of bobbers) { b.o.position.y = b.y + Math.abs(Math.sin(t * 1.4 + b.ph)) * 0.03; b.o.rotation.y = b.ry + Math.sin(t * 0.5 + b.ph) * 0.15; }
-    for (const [key, o] of Object.entries(objs)) {
-      o.visible = key === shotKey;
-      if (o.visible) { o.userData.glow.material.opacity = 0.2 + 0.06 * Math.sin(t * 3); const sh = SHOTS[key]; o.scale.setScalar(1.5 * Math.max(0.001, ease(t, timing.shots.find((x) => x.key === key).start, timing.shots.find((x) => x.key === key).start + 0.3))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12; }
+    for (const [key, o] of Object.entries(objs)) {                                  // close-up prop: pops in, shrinks out
+      const i = KEYS.indexOf(key); const w = Math.min(winIn(t, i), winOut(t, i));
+      o.visible = w > 0.004; if (!o.visible) continue;
+      o.userData.glow.material.opacity = 0.2 + 0.06 * Math.sin(t * 3);
+      o.scale.setScalar(1.5 * Math.max(0.001, w * (1 + 0.1 * Math.sin(Math.min(1, w) * Math.PI)))); o.rotation.y = -0.35 + Math.sin(t * 0.8) * 0.12;
     }
-    for (const [key, o] of Object.entries(signs)) {
-      const on = key === shotKey;
+    for (const [key, o] of Object.entries(signs)) {                                  // signs: pop in on their word, shrink out with the shot
+      const i = KEYS.indexOf(key);
+      const on = key === shotKey || (t > SHOT_A(i) && t < SHOT_B(i) + 0.05);
       o.g.visible = on;
-      if (on) o.g.scale.setScalar(Math.max(0.001, ease(t, wordT(key, o.word), wordT(key, o.word) + 0.35)));
+      if (on) o.g.scale.setScalar(Math.max(0.001, ease(t, wordT(key, o.word), wordT(key, o.word) + 0.35) * winOut(t, i)));
+    }
+    for (const p of sprops) {                                                         // shot props
+      const wIn = winIn(t, p.i), wOut = winOut(t, p.i), w = Math.min(wIn, wOut);
+      p.g.visible = w > 0.004 && (!p.hero || p.hero.visible); if (!p.g.visible) continue;
+      if (p.hero) {                                                                   // held: follows the hand, just pops in and out
+        p.g.position.set(0.085, -0.45, 0.03); p.g.rotation.set(0, 0, 0); p.g.scale.setScalar(p.sc * Math.max(0.001, Math.min(1, w)));
+        p.g.userData.flash.material.opacity = 0.35 * Math.sin(Math.min(1, wIn) * Math.PI); continue;
+      }
+      let dx = 0, dy = 0, rz = 0, ry = 0, k = 1;
+      if (p.enter === 'drop') dy = (1 - bounce(wIn)) * 3.5;
+      else if (p.enter === 'slide') dx = p.side * (1 - w) * 3.2;
+      else if (p.enter === 'rise') dy = -(1 - w) * 1.4;
+      else if (p.enter === 'swing_in') rz = -p.side * (1 - wIn) * 1.2;
+      if (p.motion === 'bob') dy += Math.abs(Math.sin(t * 1.8 + p.ph)) * 0.05;
+      else if (p.motion === 'spin') ry = t * 1.4 + p.ph;
+      else if (p.motion === 'swing') rz += Math.sin(t * 2.0 + p.ph) * 0.22;
+      else if (p.motion === 'pulse') k = 1 + Math.sin(t * 3 + p.ph) * 0.05;
+      const pop = p.enter === 'drop' ? (wOut < 1 ? wOut : 1) : w * (1 + 0.12 * Math.sin(Math.min(1, w) * Math.PI));
+      p.g.position.set(p.bx + dx, p.by + dy, p.bz); p.g.rotation.set(0, ry + (p.side < 0 ? 0.25 : -0.25), rz);
+      p.g.scale.setScalar(p.sc * Math.max(0.001, pop) * k);
+      p.g.userData.flash.material.opacity = 0.35 * Math.sin(Math.min(1, wIn) * Math.PI);        // a quick glow as it arrives
     }
   };
   return {group: W, update};

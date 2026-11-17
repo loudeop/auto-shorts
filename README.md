@@ -52,3 +52,14 @@ Change this in `config/schedule.json`.
 - **Scenery library** (`engine/src/setpieces.js`): 26 pieces and 5 floor styles. After editing it run `python pipeline/check_catalog.py`.
 - **Transitions:** characters now glide to their new spots, pop in and shrink out instead of cutting; the camera glides between framings inside a place; a place change is a whip-pan with a slight zoom, blur and a warm bloom, eased in and out.
 - **Look fixes:** the cave and castle are much brighter (dark places are no longer darkened further), shadows are lifted to a soft teal instead of black, glows are smaller and fainter, and bloom no longer blows out faces.
+
+## v2.4: colour filter over everything
+- Every video now gets a **navy** colour filter (a gradient map by brightness - deep navy shadows, blue mids, warm cream lights - blended with the original colours so characters keep some colour and warm faces).
+- Presets in `engine/src/filters.json`: navy, teal, plum, warm, sepia, none. Change the default in `pipeline/make_story.py` (`os.environ.get("FILTER", "navy")`), or set `FILTER` / `FILTER_STRENGTH` (0 to 1) as environment variables.
+- Preview on any existing video, with the same maths as the renderer: `python pipeline/colorfilter.py in.mp4 out.mp4 navy 0.5`
+
+## v2.5: scene movements, props in hands, dense finishing filter
+- **Movement per scene** (`engine/src/motion.js`): each shot can give a character an action - one of 23 ready-made ones (wave, jump, swing, fall, run_in, cower, dance...) or a CUSTOM one written for that scene as keyframes (arms, lean, sway, spin, sideways/forward/up travel, head, crouch, legs walking/spread). Deliberately simple: a flat cut-out character, no physics. If the script writer gives none, verbs in the sentence pick one ("ran in" = run_in, "fell" = fall).
+- **Props in hands:** a scene prop with a "holder" sits in that character's hand and moves with their arm (axe + swing). Basic props come from 23 recipes or are built from simple shapes (box, cylinder, sphere, cone, torus, disc) and exist only for their shot, with pop/drop/slide/rise/swing_in transitions.
+- **Dense finishing filter** (`pipeline/finish.py`): runs after the video is rendered and mixed. `FINISH_FILTER` (navy, teal, plum, warm, sepia, none) and `FINISH_STRENGTH` (0 to 1, default 0.8). The in-engine filter now defaults to none so colour is not applied twice. The preview workflow applies the same filter to its stills.
+- Run `python pipeline/gen_catalog.py` after changing any library in `engine/src`, then `python pipeline/check_catalog.py`.

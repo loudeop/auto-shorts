@@ -90,8 +90,11 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
   // legs (thin tapered sticks) + feet
-  body.add(stick(-0.09, 0.72, -0.1, 0.05, 0.03, 0.022), stick(0.09, 0.72, 0.1, 0.05, 0.03, 0.022));
-  body.add(flat(circlePts(-0.13, 0.04, 0.09, 0.045), INK, 0.0, 0.004, seed + 1), flat(circlePts(0.13, 0.04, 0.09, 0.045), INK, 0.0, 0.004, seed + 2));
+  const legL = new THREE.Group(), legR = new THREE.Group();            // pivot at the hip so legs can swing (walk, run, jump)
+  legL.position.set(-0.09, 0.72, 0); legR.position.set(0.09, 0.72, 0);
+  legL.add(stick(0, 0, -0.01, -0.67, 0.03, 0.022), flat(circlePts(-0.04, -0.68, 0.09, 0.045), INK, 0.0, 0.004, seed + 1));
+  legR.add(stick(0, 0, 0.01, -0.67, 0.03, 0.022), flat(circlePts(0.04, -0.68, 0.09, 0.045), INK, 0.0, 0.004, seed + 2));
+  body.add(legL, legR);
   // pear torso, two-tone
   const torso = [];
   for (let i = 0; i <= 20; i++) { const t = i / 20; const a = Math.PI * 2 * t; const y = 0.98 + Math.sin(a) * 0.29; const wid = 0.2 + 0.07 * (1 - (y - 0.69) / 0.58); torso.push([Math.cos(a) * wid, y]); }
@@ -229,11 +232,24 @@ export function character({palette = 'engineer', hat = 'none', glasses = false, 
     armR.rotation.z = (-Math.sin(a * 1.4 + 1) * 0.08 + raise * (E.arms > 0.4 ? 1 : 0.35) - wring + jit) * (1 - cR) + 3.3 * cR;
     armL.position.z = 0.012 + cL * 0.14; armR.position.z = 0.012 + cR * 0.14;
     for (const an of anims) an.fn(an.g, t, E);
+    // scene movement (motion.js): blended over the emotion pose; arms are overridden, everything else is added
+    const mv = root.userData.pose.mv; const mw = mv ? mv.w : 0;
+    if (mv && mw > 0.001) {
+      const mix = (base, val) => (val === undefined ? base : base + (val - base) * mw);
+      armL.rotation.z = mix(armL.rotation.z, mv.armL === undefined ? undefined : -mv.armL);
+      armR.rotation.z = mix(armR.rotation.z, mv.armR === undefined ? undefined : mv.armR);
+      body.rotation.x += (mv.lean || 0) * mw; body.rotation.z += (mv.sway || 0) * mw;
+      body.position.x += (mv.dx || 0) * mw; body.position.y += (mv.dy || 0) * mw; body.position.z += (mv.dz || 0) * mw;
+      head.rotation.x += (mv.nod || 0) * mw; head.rotation.y += (mv.shake || 0) * mw; head.rotation.z += (mv.tilt || 0) * mw;
+      body.scale.y = 1 - (mv.crouch || 0) * mw * 0.45;
+      const sw = Math.sin(t * 14) * (mv.stride || 0) * 0.7 * mw, sp = (mv.spread || 0) * mw;
+      legL.rotation.z = sw - sp; legR.rotation.z = -sw + sp;
+    } else { body.scale.y = 1; legL.rotation.z = 0; legR.rotation.z = 0; }
     // turn toward camera, clamped yaw
     const wp = new THREE.Vector3(); root.getWorldPosition(wp);
     let yaw = Math.atan2(camPos.x - wp.x, camPos.z - wp.z) - baseYaw;
     yaw = Math.max(-0.7, Math.min(0.7, yaw));
-    body.rotation.y = yaw + baseYaw - root.rotation.y;
+    body.rotation.y = yaw + baseYaw - root.rotation.y + (mv ? (mv.yaw || 0) * mw : 0);
   };
   root.userData.armR = armR; root.userData.armL = armL;
   return root;

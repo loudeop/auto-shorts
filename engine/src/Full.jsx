@@ -11,6 +11,7 @@ import {OutputPass} from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import timing from './timing.json';
 import flags from './flags.json';
+import FILTERS from './filters.json';
 import {buildWorld} from './autoworld.js';
 import {cameraAt, dipAt, whipAt, LIGHTS, CUTS} from './camera.js';
 
@@ -31,13 +32,24 @@ const Vignette = {
   fragmentShader: 'uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - 0.5; float v = 1.0 - amount * smoothstep(0.25, 0.75, length(d * vec2(1.0, 0.8))); gl_FragColor = vec4(c.rgb * v, c.a); }',
 };
 
+// colour filter over everything (navy by default; see filters.json): a gradient map by brightness blended with the original colours.
+// Same maths as pipeline/colorfilter.py, so a preview made with that script looks like the render.
+const FNAME = FILTERS[flags.filter] ? flags.filter : (flags.filter === undefined ? 'navy' : 'none');
+const FDEF = FILTERS[FNAME];
+const FSTR = flags.filter_strength !== undefined ? flags.filter_strength : FDEF.strength;
+const hx = (h) => new THREE.Vector3(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
+
 const Grade = {
-  uniforms: {tDiffuse: {value: null}, sat: {value: 1.2 - 0.26 * CALM}, con: {value: 1.08}, warm: {value: 0.035}, dark: {value: 1.0 - 0.05 * CALM}, lift: {value: 0.22 * CALM}},
+  uniforms: {tDiffuse: {value: null}, sat: {value: 1.2 - 0.26 * CALM}, con: {value: 1.08}, warm: {value: 0.035}, dark: {value: 1.0 - 0.05 * CALM}, lift: {value: 0.22 * CALM},
+    fg0: {value: hx(FDEF.stops[0])}, fg1: {value: hx(FDEF.stops[1])}, fg2: {value: hx(FDEF.stops[2])}, fg3: {value: hx(FDEF.stops[3])}, fk: {value: new THREE.Vector3(...FDEF.knots)}, fstr: {value: FSTR}},
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float warm; uniform float dark; uniform float lift; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float sat; uniform float con; uniform float warm; uniform float dark; uniform float lift; uniform vec3 fg0; uniform vec3 fg1; uniform vec3 fg2; uniform vec3 fg3; uniform vec3 fk; uniform float fstr; varying vec2 vUv;
   void main(){ vec4 c = texture2D(tDiffuse, vUv); vec3 col = c.rgb; float l = dot(col, vec3(0.299,0.587,0.114));
   col = mix(vec3(l), col, sat); col = (col - 0.5) * con + 0.5; col *= dark; col = col * (1.0 - lift) + lift * vec3(0.11, 0.16, 0.18);
   col += vec3(warm, warm*0.4, -warm) * smoothstep(0.35, 1.0, l); col += vec3(-0.01, 0.0, 0.03) * (1.0 - smoothstep(0.0, 0.45, l));
+  vec3 s = pow(clamp(col, 0.0, 1.0), vec3(0.4545)); float fl = dot(s, vec3(0.299, 0.587, 0.114));
+  vec3 g = fl < fk.x ? mix(fg0, fg1, fl / fk.x) : (fl < fk.y ? mix(fg1, fg2, (fl - fk.x) / (fk.y - fk.x)) : mix(fg2, fg3, min(1.0, (fl - fk.y) / (fk.z - fk.y))));
+  s = mix(s, g, fstr); col = pow(s, vec3(2.2));
   gl_FragColor = vec4(clamp(col, 0.0, 1.0), c.a); }`,
 };
 

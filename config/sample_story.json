@@ -64,7 +64,15 @@
    "object": "gold",
    "label": "FAKE GOLD",
    "label_word": 2,
-   "text": "A man sold a worthless mine by loading it with gold dust."
+   "text": "A man sold a worthless mine by loading it with gold dust.",
+   "scene_props": [
+    {
+     "name": "balloon",
+     "slot": "far_right",
+     "enter": "rise",
+     "motion": "bob"
+    }
+   ]
   },
   {
    "location": "cave",
@@ -80,7 +88,47 @@
    "object": "",
    "label": "",
    "label_word": 0,
-   "text": "Gentlemen, <short pause> this mine is full of gold!"
+   "text": "Gentlemen, <short pause> this mine is full of gold!",
+   "scene_props": [
+    {
+     "name": "rope",
+     "slot": "left",
+     "enter": "drop",
+     "motion": "swing"
+    }
+   ],
+   "actions": [
+    {
+     "who": 0,
+     "do": "wave",
+     "at": 0.0,
+     "dur": 0.5
+    },
+    {
+     "who": 3,
+     "do": "custom",
+     "at": 0.1,
+     "dur": 0.7,
+     "keys": [
+      {
+       "t": 0,
+       "dx": 1.5,
+       "stride": 1,
+       "lean": 0.2
+      },
+      {
+       "t": 0.7,
+       "dx": 0,
+       "stride": 0.5
+      },
+      {
+       "t": 1,
+       "stride": 0,
+       "armR": 2.0
+      }
+     ]
+    }
+   ]
   },
   {
    "location": "cave",
@@ -96,7 +144,71 @@
    "object": "",
    "label": "",
    "label_word": 0,
-   "text": "Wait, that rock is glittering!"
+   "text": "Wait, that rock is glittering!",
+   "scene_props": [
+    {
+     "parts": [
+      {
+       "shape": "box",
+       "color": "#8a5a3b",
+       "size": [
+        1.0,
+        0.7,
+        0.7
+       ],
+       "pos": [
+        0,
+        0.35,
+        0
+       ]
+      },
+      {
+       "shape": "box",
+       "color": "#c9a46a",
+       "size": [
+        1.05,
+        0.12,
+        0.75
+       ],
+       "pos": [
+        0,
+        0.72,
+        0
+       ]
+      },
+      {
+       "shape": "sphere",
+       "color": "#f2c12e",
+       "size": [
+        0.12
+       ],
+       "pos": [
+        0,
+        0.85,
+        0
+       ]
+      }
+     ],
+     "slot": "right",
+     "enter": "slide",
+     "text": "ASSAY",
+     "glow": "#ffd95a"
+    }
+   ],
+   "actions": [
+    {
+     "who": 1,
+     "do": "cower",
+     "at": 0.1,
+     "dur": 0.8
+    },
+    {
+     "who": 2,
+     "do": "jump",
+     "at": 0.5,
+     "dur": 0.4
+    }
+   ]
   },
   {
    "location": "cave",
@@ -110,7 +222,23 @@
    "object": "dynamite",
    "label": "THE TRICK",
    "label_word": 1,
-   "text": "He fired a shotgun full of gold dust into the walls."
+   "text": "He fired a shotgun full of gold dust into the walls.",
+   "scene_props": [
+    {
+     "name": "axe",
+     "holder": 0,
+     "slot": "left",
+     "enter": "swing_in"
+    }
+   ],
+   "actions": [
+    {
+     "who": 0,
+     "do": "swing",
+     "at": 0.35,
+     "dur": 0.45
+    }
+   ]
   },
   {
    "location": "cave",
@@ -126,7 +254,20 @@
    "object": "",
    "label": "",
    "label_word": 0,
-   "text": "Nobody noticed that the shiny flecks sat on the surface only."
+   "text": "Nobody noticed that the shiny flecks sat on the surface only.",
+   "scene_props": [
+    {
+     "name": "anvil",
+     "slot": "far_left",
+     "enter": "drop"
+    },
+    {
+     "name": "spring",
+     "slot": "right",
+     "enter": "rise",
+     "motion": "pulse"
+    }
+   ]
   },
   {
    "location": "cave",
@@ -140,7 +281,46 @@
    "object": "pickaxe",
    "label": "",
    "label_word": 0,
-   "text": "There is nothing deeper than the dust! <sigh>"
+   "text": "There is nothing deeper than the dust! <sigh>",
+   "actions": [
+    {
+     "who": 2,
+     "do": "custom",
+     "at": 0.0,
+     "dur": 1.0,
+     "keys": [
+      {
+       "t": 0,
+       "lean": 0,
+       "dy": 0
+      },
+      {
+       "t": 0.25,
+       "dy": 0.18,
+       "spread": 0.3,
+       "armR": 1.7,
+       "lean": 0.2
+      },
+      {
+       "t": 0.4,
+       "dy": 0,
+       "spread": 0.1
+      },
+      {
+       "t": 0.65,
+       "dy": 0.18,
+       "spread": 0.3,
+       "armL": 2.9,
+       "lean": 0.2
+      },
+      {
+       "t": 1,
+       "dy": 0,
+       "spread": 0
+      }
+     ]
+    }
+   ]
   },
   {
    "location": "harbor",
@@ -154,7 +334,15 @@
    "object": "coin",
    "label": "BANKRUPT",
    "label_word": 1,
-   "text": "By then the buyers had paid and the seller had left town."
+   "text": "By then the buyers had paid and the seller had left town.",
+   "actions": [
+    {
+     "who": 3,
+     "do": "slump",
+     "at": 0.1,
+     "dur": 0.8
+    }
+   ]
   },
   {
    "location": "harbor",
@@ -170,7 +358,21 @@
    "object": "",
    "label": "",
    "label_word": 0,
-   "text": "Sometimes the shiniest deal is the emptiest one."
+   "text": "Sometimes the shiniest deal is the emptiest one.",
+   "actions": [
+    {
+     "who": 0,
+     "do": "shake_head",
+     "at": 0.2,
+     "dur": 0.6
+    },
+    {
+     "who": 4,
+     "do": "shrug",
+     "at": 0.4,
+     "dur": 0.5
+    }
+   ]
   }
  ],
  "props": [
